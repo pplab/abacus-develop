@@ -8,6 +8,9 @@
 #include "module_hsolver/diago_elpa.h"
 #endif
 
+#ifdef __ELSI
+#include "module_hsolver/diago_elsi.h"
+#endif
 namespace hamilt
 {
 
@@ -27,6 +30,9 @@ void OperatorLCAO<double, double>::get_hs_pointers()
         BlasConnector::copy(this->LM->Sloc.size(), this->LM->Sloc.data(), inc, this->smatrix_k, inc);
 #ifdef __ELPA
         hsolver::DiagoElpa<double>::DecomposedState = 0;
+#endif
+#ifdef __ELSI
+        hsolver::is_new_e_iteration=true;
 #endif
         this->new_e_iteration = false;
     }

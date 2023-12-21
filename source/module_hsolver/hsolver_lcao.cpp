@@ -58,6 +58,24 @@ void HSolverLCAO<T>::solveTemplate(hamilt::Hamilt<T>* pHamilt,
         }
     }
 #endif
+#ifdef __ELSI
+    else if (this->method == "genelpa")
+    {
+        if (this->pdiagh != nullptr)
+        {
+            if (this->pdiagh->method != this->method)
+            {
+                delete[] this->pdiagh;
+                this->pdiagh = nullptr;
+            }
+        }
+        if (this->pdiagh == nullptr)
+        {
+            this->pdiagh = new DiagoElsi<T>();
+            this->pdiagh->method = this->method;
+        }
+    }
+#endif
 #ifdef __CUSOLVER_LCAO
     else if (this->method == "cusolver")
     {
