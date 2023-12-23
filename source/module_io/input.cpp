@@ -2918,7 +2918,7 @@ void Input::Default_2(void) // jiyy add 2019-08-04
     {
         if (ks_solver == "default")
         {
-#ifdef __ELPA
+#if defined(__ELPA)||defined(__ELSI)
             ks_solver = "genelpa";
             ModuleBase::GlobalFunc::AUTO_SET("ks_solver", "genelpa");
 #else
@@ -3782,10 +3782,10 @@ void Input::Check(void)
 #ifndef __MPI
             ModuleBase::WARNING_QUIT("Input", "genelpa can not be used for series version.");
 #endif
-#ifndef __ELPA
+#if !(defined(__ELPA)||defined(__ELSI))
             ModuleBase::WARNING_QUIT(
                 "Input",
-                "Can not use genelpa if abacus is not compiled with ELPA. Please change ks_solver to scalapack_gvx.");
+                "Can not use genelpa if abacus is not compiled with ELPA or ELSI. Please change ks_solver to scalapack_gvx.");
 #endif
         }
         else if (ks_solver == "scalapack_gvx")
