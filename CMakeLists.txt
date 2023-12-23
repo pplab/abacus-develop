@@ -154,7 +154,7 @@ endif()
 if (CMAKE_CXX_COMPILER_ID MATCHES Intel)
   add_compile_options(-fp-model=strict) # stick to strict floating point model on Intel Compiler
   set(USE_ABACUS_LIBM OFF) # Force turn off USE_ABACUS_LIBM on Intel Compiler
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-write-strings -Wno-tautological-constant-compare")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-write-strings")
 endif()
 
 if (USE_ABACUS_LIBM)
@@ -371,7 +371,7 @@ if(MKLROOT)
   endif()
 
   if(CMAKE_CXX_COMPILER_ID MATCHES Intel)
-    list(APPEND math_libs -lifcore)
+    list(APPEND math_libs -lifcore -lifport)
   endif()
 else()
   find_package(FFTW3 REQUIRED)

@@ -19,6 +19,11 @@ if(ENABLE_LCAO)
         diago_elpa.cpp
     )
   endif ()
+  if (USE_ELSI)
+    list(APPEND objects
+        diago_elsi.cpp
+    )
+  endif ()
 
   if(USE_CUSOLVER_LCAO AND USE_CUDA)
       list(APPEND objects

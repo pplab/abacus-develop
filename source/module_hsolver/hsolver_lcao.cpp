@@ -7,6 +7,9 @@
 #ifdef __ELPA
 #include "diago_elpa.h"
 #endif
+#ifdef __ELSI
+#include "diago_elsi.h"
+#endif
 #ifdef __CUSOLVER_LCAO
 #include "diago_cusolver.h"
 #endif
