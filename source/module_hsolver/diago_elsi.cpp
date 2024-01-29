@@ -10,7 +10,6 @@ extern "C"
 }
 #include "unistd.h"
 
-
 typedef std::complex<double> double_complex;
 typedef hamilt::MatrixBlock<double> matd;
 typedef hamilt::MatrixBlock<double_complex> matcd;
@@ -35,7 +34,7 @@ namespace hsolver
         // It is not used when call ELPA kernel, but is needed to init elsi handle.
         const int n_state = GlobalV::NBANDS;
         c_elsi_init(&ELSI_handle, solver, par_mode, mat_format, n_basis, n_electron, n_state);
-        c_elsi_set_mpi(ELSI_handle, COMM_DIAG);
+        c_elsi_set_mpi(ELSI_handle, MPI_Comm_c2f(COMM_DIAG));
         c_elsi_set_blacs(ELSI_handle, blacs_ctxt, nblk);
         is_ELSI_handle_inited=true;
     }
@@ -53,30 +52,30 @@ namespace hsolver
         if(is_ELSI_handle_inited)
         {
             c_elsi_reinit(ELSI_handle);
-            ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"ELSI_handle is reinited");
             // complex type is run for k point and the S matrix can not be reused within electron steps
             // because it is used for different k point in every single step.
         }
         else
         {
             set_ELSI_handle(MPI_COMM_WORLD, (const int*)h_mat.desc);
-            ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"ELSI_handle is set");
         }
 
+        // use temp storage for eigenvalue and eigenvector
         vector<double> eigen(GlobalV::NLOCAL, 0.0);
         double* eval=eigen.data();
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"eigen is allocated, size ", GlobalV::NLOCAL);
-
+    
+        const int nloc=h_mat.row*h_mat.col;
+        vector<double_complex> evec_tmp(nloc);
+        
         auto h=reinterpret_cast<double _Complex*>(h_mat.p);
-        auto s=reinterpret_cast<double _Complex*>(s_mat.p);
-        auto evec=reinterpret_cast<double _Complex*>(psi.get_pointer());
-
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"start solving...");
+        auto s=reinterpret_cast<double _Complex*>(s_mat.p);        
+        auto evec=reinterpret_cast<double _Complex*>(evec_tmp.data());
         c_elsi_ev_complex(ELSI_handle, h, s, eval, evec);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"c_elsi_ev_complex ended, eval[0]", eval[0]);
 
         BlasConnector::copy(GlobalV::NBANDS, eval, inc, eigenvalue_in, inc);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"eval is copied to eigenvalue_in");
+        
+        const int n_psi=psi.get_nbands()*psi.get_nbasis();
+        BlasConnector::copy(n_psi, evec_tmp.data(), inc, psi.get_pointer(), inc);       
     #else
         ModuleBase::WARNING_QUIT("DiagoElsi", "DiagoElsi only can be used with macro __MPI");
     #endif
@@ -112,14 +111,18 @@ namespace hsolver
         }
         
         vector<double> eigen(GlobalV::NLOCAL, 0.0);
-        double* eval=eigen.data();
+        const int nloc=h_mat.row*h_mat.col;
+        vector<double> evec_tmp(nloc);
 
         ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,"start solving...");
-        c_elsi_ev_real(ELSI_handle, h_mat.p, s_mat.p, eval, psi.get_pointer());
+        c_elsi_ev_real(ELSI_handle, h_mat.p, s_mat.p, eigen.data(), evec_tmp.data());
         
         ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "K-S equation was solved by elsi");
         BlasConnector::copy(GlobalV::NBANDS, eigen.data(), inc, eigenvalue_in, inc);
         ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "eigenvalues were copied to ekb");
+        
+        const int n_psi=psi.get_nbands()*psi.get_nbasis();
+        BlasConnector::copy(n_psi, evec_tmp.data(), inc, psi.get_pointer(), inc);
     #else
         ModuleBase::WARNING_QUIT("DiagoElsi", "DiagoElsi only can be used with macro __MPI");
     #endif
