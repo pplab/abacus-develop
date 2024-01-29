@@ -72,6 +72,7 @@
     - [mixing\_beta](#mixing_beta)
     - [mixing\_beta\_mag](#mixing_beta_mag)
     - [mixing\_ndim](#mixing_ndim)
+    - [mixing\_restart](#mixing_restart)
     - [mixing\_gg0](#mixing_gg0)
     - [mixing\_gg0\_mag](#mixing_gg0_mag)
     - [mixing\_gg0\_min](#mixing_gg0_min)
@@ -145,6 +146,8 @@
     - [out\_app\_flag](#out_app_flag)
     - [out\_ndigits](#out_ndigits)
     - [out\_interval](#out_interval)
+    - [band\_print\_num](#band_print_num)
+    - [bands\_to\_print](#bands_to_print)
     - [out\_element\_info](#out_element_info)
     - [restart\_save](#restart_save)
     - [restart\_load](#restart_load)
@@ -945,6 +948,8 @@ calculations.
   - **fixed**: fixed occupations (available for non-coductors only)
   - **gauss** or **gaussian**: Gaussian smearing method.
   - **mp**: methfessel-paxton smearing method; recommended for metals.
+  - **mp2**: 2-nd methfessel-paxton smearing method; recommended for metals.
+  - **mv** or **cold**: marzari-vanderbilt smearing method.
   - **fd**: Fermi-Dirac smearing method: $f=1/\{1+\exp[(E-\mu)/kT]\}$ and smearing_sigma below is the temperature $T$ (in Ry).
 - **Default**: gauss
 
@@ -1000,6 +1005,13 @@ We recommend the following options:
   
   For systems that are difficult to converge, one could try increasing the value of 'mixing_ndim' to enhance the stability of the self-consistent field (SCF) calculation.
 - **Default**: 8
+
+### mixing_restart
+
+- **Type**: Integer
+- **Description**: At `mixing_restart`-th iteration, SCF will restart by using output charge density from perivos iteration as input charge density directly, and start a new mixing. `mixing_restart=0|1` means SCF starts from scratch.
+  
+- **Default**: 0
 
 ### mixing_gg0
 
@@ -1494,8 +1506,8 @@ These variables are used to control the output of properties.
 
 ### out_band
 
-- **Type**: Boolean
-- **Description**: Whether to output the band structure (in eV). For more information, refer to the [band.md](../elec_properties/band.md)
+- **Type**: Boolean Integer(optional)
+- **Description**: Whether to output the band structure (in eV), optionally output precision can be set by a second parameter, default is 8. For more information, refer to the [band.md](../elec_properties/band.md)
 - **Default**: False
 
 ### out_proj_band
@@ -1598,6 +1610,20 @@ These variables are used to control the output of properties.
 - **Availability**: Numerical atomic orbital basis
 - **Description**: Control the interval for printing Mulliken population analysis, $r(R)$, $H(R)$, $S(R)$, $T(R)$, $dH(R)$, $H(k)$, $S(k)$ and $wfc(k)$ matrices during molecular dynamics calculations. Check input parameters [out_mul](#out_mul), [out_mat_r](#out_mat_r), [out_mat_hs2](#out_mat_hs2), [out_mat_t](#out_mat_t), [out_mat_dh](#out_mat_dh), [out_mat_hs](#out_mat_hs) and [out_wfc_lcao](#out_wfc_lcao) for more information, respectively.
 - **Default**: 1
+
+### band_print_num
+
+- **Type**: Integer
+- **Availability**: PW basis
+- **Description**: If you want to plot a partial charge density contributed from some chosen bands. `band_print_num` define the number of band list. The result can be found in "band*.cube".
+- **Default**: 0
+
+### bands_to_print
+
+- **Type**: vector
+- **Availability**: band_print_num > 0
+- **Description**: define which band you want to choose for partial charge density.
+- **Default**: []
 
 ### out_element_info
 
@@ -2776,9 +2802,9 @@ These variables are used to control berry phase and wannier90 interface paramete
 
 - **Type**: String
 - **Description**: the spin direction for the Wannier function calculation when nspin is set to 2
-  - "up": Calculate spin up for the Wannier function.
-  - "down": Calculate spin down for the Wannier function.
-- **Default**: "up"
+  - `up`: Calculate spin up for the Wannier function.
+  - `down`: Calculate spin down for the Wannier function.
+- **Default**: `up`
 
 ### out_wannier_mmn
 
@@ -2818,6 +2844,7 @@ These variables are used to control berry phase and wannier90 interface paramete
 - **Description**: write the "UNK.*" file in ASCII format or binary format.
   - 0: write the "UNK.*" file in binary format.
   - 1: write the "UNK.*" file in ASCII format (text file format).
+- **Default**: 1
 
 [back to top](#full-list-of-input-keywords)
 
@@ -3459,7 +3486,7 @@ for `nspin 2` case. The difference is that `lambda`, `target_mag`, and `constrai
 
 ## Quasiatomic Orbital (QO) analysis
 
-These variables are used to control the usage of QO analysis.
+These variables are used to control the usage of QO analysis. Please note present implementation of QO always yield numerically instable results, use with much care.
 
 ### qo_switch
 
@@ -3472,28 +3499,35 @@ These variables are used to control the usage of QO analysis.
 - **Type**: String
 - **Description**: specify the type of atomic basis
   - `pswfc`: use the pseudowavefunction in pseudopotential files as atomic basis. To use this option, please make sure in pseudopotential file there is pswfc in it.
-  - `hydrogen`: generate hydrogen-like atomic basis, whose charge is read from pseudopotential files presently.
+  - `hydrogen`: generate hydrogen-like atomic basis.
 
   *warning: to use* `pswfc` *, please use norm-conserving pseudopotentials with pseudowavefunctions, SG15 pseudopotentials cannot support this option.*
 - **Default**: `hydrogen`
 
 ### qo_strategy
 
-- **Type**: String
-- **Availability**: for `qo_basis hydrogen` only.
-- **Description**: specify the strategy to generate hydrogen-like orbitals
-  - `minimal`: according to principle quantum number of the highest occupied state, generate only nodeless orbitals, for example Cu, only generate 1s, 2p, 3d and 4f orbitals (for Cu, 4s is occupied, thus $n_{max} = 4$)
+- **Type**: String \[String...\](optional)
+- **Description**: specify the strategy to generate radial orbitals for each atom type. If one parameter is given, will apply to all atom types. If more than one parameters are given but fewer than number of atom type, those unspecified atom type will use default value.
+
+  For `qo_basis hydrogen`
+  - `minimal-nodeless`: according to principle quantum number of the highest occupied state, generate only nodeless orbitals, for example Cu, only generate 1s, 2p, 3d and 4f orbitals (for Cu, 4s is occupied, thus $n_{max} = 4$)
+  - `minimal-valence`: according to principle quantum number of the highest occupied state, generate only orbitals with highest principle quantum number, for example Cu, only generate 4s, 4p, 4d and 4f orbitals.
   - `full`: similarly according to the maximal principle quantum number, generate all possible orbitals, therefore for Cu, for example, will generate 1s, 2s, 2p, 3s, 3p, 3d, 4s, 4p, 4d, 4f.
   - `energy`: will generate hydrogen-like orbitals according to Aufbau principle. For example the Cu (1s2 2s2 2p6 3s2 3p6 3d10 4s1), will generate these orbitals.
-  
-  *warning: to use* `full`, *generation strategy may cause the space spanned larger than the one spanned by numerical atomic orbitals, in this case, must filter out orbitals in some way*
-- **Default**: `minimal`
+
+  For `qo_basis pswfc`
+  - `all`: use all possible pseudowavefunctions in pseudopotential file.
+  - `s`/`p`/`d`/...: only use s/p/d/f/...-orbital(s).
+  - `spd`: use s, p and d orbital(s). Any unordered combination is acceptable.
+
+  *warning: for* `qo_basis hydrogen` *to use* `full`, *generation strategy may cause the space spanned larger than the one spanned by numerical atomic orbitals, in this case, must filter out orbitals in some way*
+- **Default**: `minimal-valence`
 
 ### qo_screening_coeff
 
-- **Type**: Real
+- **Type**: Real \[Real...\](optional)
 - **Availability**: for `qo_basis pswfc` only.
-- **Description**: a screening factor $e^{-\eta|\mathbf{r}|}$ is multiplied to the pswfc to mimic the behavior of some kind of electron. $\eta$ is the screening coefficient. Presently one scalar value can be passed to ABACUS, therefore all atom types use the same value.
+- **Description**: for each atom type, screening factor $e^{-\eta|\mathbf{r}|}$ is multiplied to the pswfc to mimic the behavior of some kind of electron. $\eta$ is the screening coefficient. If only one value is given, then will apply to each atom type. If not enough values are given, will apply default value to rest of atom types. This parameter plays important role in controlling the spread of QO orbitals together with `qo_thr`.
 - **Default**: 0.1
 - **Unit**: Bohr^-1
 

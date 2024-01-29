@@ -248,6 +248,7 @@ std::string of_kernel_file = "WTkernel.txt";
 std::string MIXING_MODE = "broyden";
 double MIXING_BETA = 0.7;
 int MIXING_NDIM = 8;
+int MIXING_RESTART = 0;
 double MIXING_GG0 = 1.00;
 double MIXING_BETA_MAG = 1.6;
 double MIXING_GG0_MAG = 1.00;
@@ -297,7 +298,7 @@ std::string sc_file = "none";
 //==========================================================
 bool qo_switch = false;
 std::string qo_basis = "hydrogen";
-std::string qo_strategy = "minimal";
+std::vector<std::string> qo_strategy = {};
 double qo_thr = 1.0e-6;
 std::vector<double> qo_screening_coeff = {};
 } // namespace GlobalV

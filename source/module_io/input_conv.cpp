@@ -750,6 +750,7 @@ void Input_Conv::Convert(void)
     GlobalV::MIXING_MODE = INPUT.mixing_mode;
     GlobalV::MIXING_BETA = INPUT.mixing_beta;
     GlobalV::MIXING_NDIM = INPUT.mixing_ndim;
+    GlobalV::MIXING_RESTART = INPUT.mixing_restart;
     GlobalV::MIXING_GG0 = INPUT.mixing_gg0;
     GlobalV::MIXING_BETA_MAG = INPUT.mixing_beta_mag;
     GlobalV::MIXING_GG0_MAG = INPUT.mixing_gg0_mag;
@@ -764,7 +765,7 @@ void Input_Conv::Convert(void)
     GlobalV::qo_basis = INPUT.qo_basis;
     GlobalV::qo_strategy = INPUT.qo_strategy;
     GlobalV::qo_thr = INPUT.qo_thr;
-    GlobalV::qo_screening_coeff = std::vector<double>(INPUT.ntype, INPUT.qo_screening_coeff);
+    GlobalV::qo_screening_coeff = INPUT.qo_screening_coeff;
     ModuleBase::timer::tick("Input_Conv", "Convert");
     return;
 }

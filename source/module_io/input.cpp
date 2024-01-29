@@ -303,6 +303,7 @@ void Input::Default(void)
     mixing_mode = "broyden";
     mixing_beta = -10;
     mixing_ndim = 8;
+    mixing_restart = 0;
     mixing_gg0 = 1.00;       // use Kerker defaultly
     mixing_beta_mag = -10.0; // only set when nspin == 2 || nspin == 4
     mixing_gg0_mag = 0.0;    // defaultly exclude Kerker from mixing magnetic density
@@ -327,6 +328,8 @@ void Input::Default(void)
 
     out_bandgap = 0; // QO added for bandgap printing
 
+    band_print_num = 0;
+
     deepks_out_labels = 0; // caoyu added 2020-11-24, mohan added 2021-01-03
     deepks_scf = 0;
     deepks_bandgap = 0;
@@ -336,7 +339,7 @@ void Input::Default(void)
     out_wfc_pw = 0;
     out_wfc_r = 0;
     out_dos = 0;
-    out_band = 0;
+    out_band = {0, 8};
     out_proj_band = 0;
     out_mat_hs = {0, 8};
     out_mat_xc = 0;
@@ -596,6 +599,7 @@ void Input::Default(void)
     bessel_nao_sigma = 0.1;
     bessel_nao_ecut = "default";
     bessel_nao_rcut = 6.0; // -1.0 for forcing manual setting
+    bessel_nao_rcuts = {};
     bessel_nao_tolerence = 1E-12;
 
     bessel_descriptor_lmax = 2; // -1 for forcing manual setting
@@ -630,9 +634,9 @@ void Input::Default(void)
     //==========================================================
     qo_switch = false;
     qo_basis = "hydrogen";
-    qo_strategy = "minimal";
+    qo_strategy = {};
     qo_thr = 1e-6;
-    qo_screening_coeff = 0.1;
+    qo_screening_coeff = {};
 
     return;
 }
@@ -1255,6 +1259,10 @@ bool Input::Read(const std::string& fn)
         {
             read_value(ifs, mixing_ndim);
         }
+        else if (strcmp("mixing_restart", word) == 0)
+        {
+            read_value(ifs, mixing_restart);
+        }
         else if (strcmp("mixing_gg0", word) == 0) // mohan add 2014-09-27
         {
             read_value(ifs, mixing_gg0);
@@ -1326,6 +1334,14 @@ bool Input::Read(const std::string& fn)
         {
             read_bool(ifs, out_chg);
         }
+        else if (strcmp("band_print_num", word) == 0)
+        {
+            read_value(ifs, band_print_num);
+        }
+        else if (strcmp("bands_to_print", word) == 0)
+        {
+            ifs.ignore(150, '\n');
+        }
         else if (strcmp("out_dm", word) == 0)
         {
             read_bool(ifs, out_dm);
@@ -1377,13 +1393,13 @@ bool Input::Read(const std::string& fn)
         }
         else if (strcmp("out_band", word) == 0)
         {
-            read_bool(ifs, out_band);
+            read_value2stdvector(ifs, out_band);
+            if(out_band.size() == 1) out_band.push_back(8);
         }
         else if (strcmp("out_proj_band", word) == 0)
         {
             read_bool(ifs, out_proj_band);
         }
-
         else if (strcmp("out_mat_hs", word) == 0)
         {
             read_value2stdvector(ifs, out_mat_hs);
@@ -2295,14 +2311,14 @@ bool Input::Read(const std::string& fn)
         else if (strcmp("qo_basis", word) == 0){
             read_value(ifs, qo_basis);
         }
-        else if (strcmp("qo_strategy", word) == 0){
-            read_value(ifs, qo_strategy);
-        }
         else if (strcmp("qo_thr", word) == 0){
             read_value(ifs, qo_thr);
         }
+        else if (strcmp("qo_strategy", word) == 0){
+            read_value2stdvector(ifs, qo_strategy);
+        }
         else if (strcmp("qo_screening_coeff", word) == 0){
-            read_value(ifs, qo_screening_coeff);
+            read_value2stdvector(ifs, qo_screening_coeff);
         }
         else
         {
@@ -2366,6 +2382,29 @@ bool Input::Read(const std::string& fn)
     else if (this->ntype != ntype_stru)
     {
         ModuleBase::WARNING_QUIT("Input", "The ntype in INPUT is not equal to the ntype counted in STRU, check it.");
+    }
+
+    if(band_print_num > 0)
+    {
+        bands_to_print.resize(band_print_num);
+        ifs.clear();
+        ifs.seekg(0); // move to the beginning of the file
+        ifs.rdstate();
+        while (ifs.good())
+        {
+            ifs >> word1;
+            if (ifs.eof() != 0)
+                break;
+            strtolower(word1, word); // convert uppercase std::string to lower case; word1 --> word
+
+            if (strcmp("bands_to_print", word) == 0)
+            {
+                for(int i = 0; i < band_print_num; i ++)
+                {
+                    ifs >> bands_to_print[i];
+                }
+            }
+        }
     }
 
     //----------------------------------------------------------
@@ -2825,7 +2864,7 @@ void Input::Default_2(void) // jiyy add 2019-08-04
         this->relax_nmax = 1;
         out_stru = 0;
         out_dos = 0;
-        out_band = 0;
+        out_band[0] = 0;
         out_proj_band = 0;
         cal_force = 0;
         init_wfc = "file";
@@ -2842,7 +2881,7 @@ void Input::Default_2(void) // jiyy add 2019-08-04
         this->relax_nmax = 1;
         out_stru = 0;
         out_dos = 0;
-        out_band = 0;
+        out_band[0] = 0;
         out_proj_band = 0;
         cal_force = 0;
         init_wfc = "file";
@@ -3069,10 +3108,29 @@ void Input::Default_2(void) // jiyy add 2019-08-04
 
     if(qo_switch)
     {
+        /* parameter logic of QO */
         out_mat_hs[0] = 1; // print H(k) and S(k)
         out_wfc_lcao = 1; // print wave function in lcao basis in kspace
         symmetry = "-1"; // disable kpoint reduce
     }
+    if(qo_screening_coeff.size() != ntype)
+    {
+        double default_screening_coeff = (qo_screening_coeff.size() == 1)? qo_screening_coeff[0]: 0.1;
+        qo_screening_coeff.resize(ntype, default_screening_coeff);
+    }
+    if(qo_strategy.size() != ntype)
+    {
+        if(qo_strategy.size() == 1)
+        {
+            qo_strategy.resize(ntype, qo_strategy[0]);
+        }
+        else
+        {
+            std::string default_strategy = (qo_basis == "hydrogen")? "minimal-valence": "all";
+            qo_strategy.resize(ntype, default_strategy);
+        }
+    }
+
   
     // set nspin with noncolin
     if (noncolin || lspinorb)
@@ -3272,6 +3330,7 @@ void Input::Bcast()
     Parallel_Common::bcast_string(mixing_mode);
     Parallel_Common::bcast_double(mixing_beta);
     Parallel_Common::bcast_int(mixing_ndim);
+    Parallel_Common::bcast_int(mixing_restart);
     Parallel_Common::bcast_double(mixing_gg0); // mohan add 2014-09-27
     Parallel_Common::bcast_double(mixing_beta_mag);
     Parallel_Common::bcast_double(mixing_gg0_mag);
@@ -3305,8 +3364,10 @@ void Input::Bcast()
     Parallel_Common::bcast_int(out_wfc_pw);
     Parallel_Common::bcast_bool(out_wfc_r);
     Parallel_Common::bcast_int(out_dos);
-    Parallel_Common::bcast_bool(out_band);
+    if(GlobalV::MY_RANK != 0) out_band.resize(2); /* If this line is absent, will cause segmentation fault in io_input_test_para */
+    Parallel_Common::bcast_int(out_band.data(), 2);
     Parallel_Common::bcast_bool(out_proj_band);
+    if(GlobalV::MY_RANK != 0) out_mat_hs.resize(2); /* If this line is absent, will cause segmentation fault in io_input_test_para */
     Parallel_Common::bcast_int(out_mat_hs.data(), 2);
     Parallel_Common::bcast_bool(out_mat_hs2); // LiuXh add 2019-07-15
     Parallel_Common::bcast_bool(out_mat_t);
@@ -3502,6 +3563,17 @@ void Input::Bcast()
     Parallel_Common::bcast_bool(restart_save);  // Peize Lin add 2020.04.04
     Parallel_Common::bcast_bool(restart_load);  // Peize Lin add 2020.04.04
 
+    Parallel_Common::bcast_int(band_print_num);
+    if(GlobalV::MY_RANK != 0)
+    {
+        bands_to_print.resize(band_print_num);
+    }
+
+    for(int i = 0; i < band_print_num; i++)
+    {
+        Parallel_Common::bcast_int(bands_to_print[i]);
+    }
+
     //-----------------------------------------------------------------------------------
     // DFT+U (added by Quxin 2020-10-29)
     //-----------------------------------------------------------------------------------
@@ -3570,8 +3642,11 @@ void Input::Bcast()
     /* newly support vector/list input of bessel_nao_rcut */
     int nrcut = bessel_nao_rcuts.size();
     Parallel_Common::bcast_int(nrcut);
-    if (GlobalV::MY_RANK != 0) bessel_nao_rcuts.resize(nrcut);
-    Parallel_Common::bcast_double(bessel_nao_rcuts.data(), nrcut);
+    if (nrcut != 0) /* as long as its value is really given, bcast, otherwise not */
+    {
+        bessel_nao_rcuts.resize(nrcut);
+        Parallel_Common::bcast_double(bessel_nao_rcuts.data(), nrcut);
+    }
     /* end */
     Parallel_Common::bcast_double(bessel_nao_rcut);
     Parallel_Common::bcast_double(bessel_nao_tolerence);
@@ -3600,9 +3675,15 @@ void Input::Bcast()
 
     Parallel_Common::bcast_bool(qo_switch);
     Parallel_Common::bcast_string(qo_basis);
-    Parallel_Common::bcast_string(qo_strategy);
     Parallel_Common::bcast_double(qo_thr);
-    Parallel_Common::bcast_double(qo_screening_coeff);
+    /* broadcasting std::vector is sometime a annorying task... */
+    if (ntype != 0) /* ntype has been broadcasted before */
+    {
+        qo_strategy.resize(ntype); 
+        Parallel_Common::bcast_string(qo_strategy.data(), ntype);
+        qo_screening_coeff.resize(ntype);
+        Parallel_Common::bcast_double(qo_screening_coeff.data(), ntype);
+    }
     return;
 }
 #endif
@@ -3847,6 +3928,10 @@ void Input::Check(void)
         if (ks_solver == "cg")
         {
             ModuleBase::WARNING_QUIT("Input", "not ready for cg method in lcao ."); // xiaohui add 2013-09-04
+        }
+        else if (ks_solver == "cg_in_lcao")
+        {
+            GlobalV::ofs_warning << "cg_in_lcao is under testing" << std::endl;
         }
         else if (ks_solver == "genelpa")
         {
@@ -4153,11 +4238,19 @@ void Input::Check(void)
     }
     if(qo_switch)
     {
+        /* first about rationality of parameters */
         if(qo_basis == "pswfc")
         {
-            if(qo_screening_coeff < 1e-6)
+            for(auto screen_coeff: qo_screening_coeff)
             {
-                ModuleBase::WARNING_QUIT("INPUT", "screening coefficient of pswfc must be larger than 0");
+                if(screen_coeff < 0)
+                {
+                    ModuleBase::WARNING_QUIT("INPUT", "screening coefficient must >= 0 to tune the pswfc decay");
+                }
+                if(std::fabs(screen_coeff) < 1e-6)
+                {
+                    ModuleBase::WARNING("INPUT", "every low screening coefficient might yield very high computational cost");
+                }
             }
         }
         else if(qo_basis == "hydrogen")
@@ -4167,6 +4260,9 @@ void Input::Check(void)
                 ModuleBase::WARNING("INPUT", "too high the convergence threshold might yield unacceptable result");
             }
         }
+        /* then size of std::vector<> parameters */
+        if(qo_screening_coeff.size() != ntype) ModuleBase::WARNING_QUIT("INPUT", "qo_screening_coeff.size() != ntype");
+        if(qo_strategy.size() != ntype) ModuleBase::WARNING_QUIT("INPUT", "qo_strategy.size() != ntype");
     }
 
     return;

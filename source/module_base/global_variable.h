@@ -277,6 +277,7 @@ extern std::string of_kernel_file; // The name of WT kernel file.
 extern std::string MIXING_MODE;
 extern double MIXING_BETA;
 extern int MIXING_NDIM;
+extern int MIXING_RESTART;
 extern double MIXING_GG0;
 extern bool MIXING_TAU;
 extern double MIXING_BETA_MAG;
@@ -325,7 +326,7 @@ extern std::string sc_file;
 // Quasiatomic orbital related
 extern bool qo_switch;
 extern std::string qo_basis;
-extern std::string qo_strategy;
+extern std::vector<std::string> qo_strategy;
 extern double qo_thr;
 extern std::vector<double> qo_screening_coeff;
 } // namespace GlobalV

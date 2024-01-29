@@ -624,17 +624,31 @@ void HSolverPW<T, Device>::hamiltSolvePsiK(hamilt::Hamilt<T, Device>* hm, psi::P
         hm->ops->hPsi(info);
         ModuleBase::timer::tick("DiagoCG_New", "hpsi_func");
     };
-    auto spsi_func = [hm](const ct::Tensor& psi_in, ct::Tensor& spsi_out) {
+    auto spsi_func = [this, hm](const ct::Tensor& psi_in, ct::Tensor& spsi_out) {
         ModuleBase::timer::tick("DiagoCG_New", "spsi_func");
         // psi_in should be a 2D tensor: 
         // psi_in.shape() = [nbands, nbasis]
         const auto ndim = psi_in.shape().ndim();
         REQUIRES_OK(ndim <= 2, "dims of psi_in should be less than or equal to 2");
-        // Convert a Tensor object to a psi::Psi object
-        hm->sPsi(psi_in.data<T>(), spsi_out.data<T>(), 
+
+        if (GlobalV::use_uspp)
+        {
+            // Convert a Tensor object to a psi::Psi object
+            hm->sPsi(psi_in.data<T>(), spsi_out.data<T>(), 
             ndim == 1 ? psi_in.NumElements() : psi_in.shape().dim_size(1), 
             ndim == 1 ? psi_in.NumElements() : psi_in.shape().dim_size(1), 
             ndim == 1 ? 1 : psi_in.shape().dim_size(0));
+        } else
+        {
+            psi::memory::synchronize_memory_op<T, Device, Device>()(
+                this->ctx,
+                this->ctx,
+                spsi_out.data<T>(),
+                psi_in.data<T>(),
+                static_cast<size_t>((ndim == 1 ? 1 : psi_in.shape().dim_size(0))
+                                    * (ndim == 1 ? psi_in.NumElements() : psi_in.shape().dim_size(1))));
+        }
+        
         ModuleBase::timer::tick("DiagoCG_New", "spsi_func");
     };
     auto psi_tensor = ct::TensorMap(
@@ -759,6 +773,12 @@ typename HSolverPW<T, Device>::Real HSolverPW<T, Device>::reset_diagethr(std::of
     ofs_running << " hsover_error=" << hsover_error << " > DRHO=" << drho << std::endl;
     ofs_running << " Origin diag_ethr = " << this->diag_ethr << std::endl;
     this->diag_ethr = 0.1 * drho / GlobalV::nelec;
+    // It is essential for single precision implementation to keep the diag_ethr value
+    // less or equal to the single-precision limit of convergence(0.5e-4).
+    // modified by denghuilu at 2023-05-15
+    if (GlobalV::precision_flag == "single") {
+        this->diag_ethr = std::max(this->diag_ethr, static_cast<Real>(0.5e-4));
+    }
     ofs_running << " New    diag_ethr = " << this->diag_ethr << std::endl;
     return this->diag_ethr;
 }
