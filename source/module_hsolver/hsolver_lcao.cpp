@@ -24,6 +24,10 @@
 #include "diago_pexsi.h"
 #endif
 
+#ifdef __NTPoly
+#include "diago_ntpoly.h"
+#endif
+
 #include "module_base/global_variable.h"
 #include "module_base/memory.h"
 #include "module_base/timer.h"
@@ -113,7 +117,24 @@ void HSolverLCAO<T, Device>::solve(hamilt::Hamilt<T>* pHamilt,
         _pes->dmToRho(pe.DM, pe.EDM);
 #endif
     }
-
+    else if (this->method == "ntpoly")
+    {
+#ifdef __NTPoly // other purification methods should follow this routine
+        DiagoNTPoly<T> pe(ParaV);
+        for (int ik = 0; ik < psi.get_nk(); ++ik)
+        {
+            /// update H(k) for each k point
+            pHamilt->updateHk(ik);
+            psi.fix_k(ik);
+            // solve eigenvector and eigenvalue for H(k)
+            pe.diag(pHamilt, psi, nullptr);
+        }
+        auto _pes = dynamic_cast<elecstate::ElecStateLCAO<T>*>(pes);
+        pes->f_en.eband = pe.totalFreeEnergy;
+        // maybe eferm could be dealt with in the future
+        _pes->dmToRho(pe.DM, pe.EDM);
+#endif
+    }
     ModuleBase::timer::tick("HSolverLCAO", "solve");
     return;
 }
