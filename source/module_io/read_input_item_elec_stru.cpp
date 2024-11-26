@@ -71,6 +71,7 @@ void ReadInput::item_elec_stru()
                 "cusolver",
                 "cusolvermp",
                 "pexsi",
+                "ntpoly",
                 "cg_in_lcao",
             };
 
@@ -134,6 +135,14 @@ void ReadInput::item_elec_stru()
                     ModuleBase::WARNING_QUIT("ReadInput",
                                              "Can not use PEXSI if abacus is not compiled with "
                                              "PEXSI. Please change "
+                                             "ks_solver to scalapack_gvx.");
+#endif
+#ifdef __NTPOLY
+                    GlobalV::ofs_warning << " It's ok to use ntpoly." << std::endl;
+#else
+                    ModuleBase::WARNING_QUIT("ReadInput",
+                                             "Can not use NTPoly if abacus is not compiled with "
+                                             "NTPOLY. Please change "
                                              "ks_solver to scalapack_gvx.");
 #endif
                 }

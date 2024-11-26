@@ -185,6 +185,63 @@ void ElecStateLCAO<std::complex<double>>::dmToRho(std::vector<std::complex<doubl
 
 #endif
 
+
+#ifdef __NTPOLY
+template <>
+void ElecStateLCAO<double>::dmToRho(std::vector<double*> DM, std::vector<double*> EDM)
+{
+    ModuleBase::timer::tick("ElecStateLCAO", "dmToRho");
+
+    int nspin = PARAM.inp.nspin;
+    if (PARAM.inp.nspin == 4)
+    {
+        nspin = 1;
+    }
+
+    this->get_DM()->EDM = EDM;
+
+    for (int is = 0; is < nspin; is++)
+    {
+        this->DM->set_DMK_pointer(is, DM[is]);
+    }
+    DM->cal_DMR();
+
+    for (int is = 0; is < PARAM.inp.nspin; is++)
+    {
+        ModuleBase::GlobalFunc::ZEROS(this->charge->rho[is],
+                                      this->charge->nrxx); // mohan 2009-11-10
+    }
+
+    ModuleBase::GlobalFunc::NOTE("Calculate the charge on real space grid!");
+    this->gint_gamma->transfer_DM2DtoGrid(this->DM->get_DMR_vector()); // transfer DM2D to DM_grid in gint
+    Gint_inout inout(this->charge->rho, Gint_Tools::job_type::rho, PARAM.inp.nspin);
+    this->gint_gamma->cal_gint(&inout);
+    if (XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5)
+    {
+        for (int is = 0; is < PARAM.inp.nspin; is++)
+        {
+            ModuleBase::GlobalFunc::ZEROS(this->charge->kin_r[0], this->charge->nrxx);
+        }
+        Gint_inout inout1(this->charge->kin_r, Gint_Tools::job_type::tau);
+        this->gint_gamma->cal_gint(&inout1);
+    }
+
+    this->charge->renormalize_rho();
+
+    ModuleBase::timer::tick("ElecStateLCAO", "dmToRho");
+    return;
+}
+
+template <>
+void ElecStateLCAO<std::complex<double>>::dmToRho(std::vector<std::complex<double>*> DM,
+                                                  std::vector<std::complex<double>*> EDM)
+{
+    ModuleBase::WARNING_QUIT("ElecStateLCAO", "NTPoly is not completed for multi-k case");
+}
+
+#endif
+
+
 template class ElecStateLCAO<double>;               // Gamma_only case
 template class ElecStateLCAO<std::complex<double>>; // multi-k case
 

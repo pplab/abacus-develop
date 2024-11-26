@@ -39,6 +39,19 @@ elecstate::DensityMatrix<double, double> Force_LCAO<double>::cal_edm(const elecs
     }
     else
 #endif
+#ifdef __NTPOLY
+    if (PARAM.inp.ks_solver == "ntpoly")
+    {
+        auto pes = dynamic_cast<const elecstate::ElecStateLCAO<double>*>(pelec);
+        for (int ik = 0; ik < nspin; ik++)
+        {
+            edm.set_DMK_pointer(ik, pes->get_DM()->EDM[ik]);
+        }
+        
+    }
+    else
+#endif
+
     {
         elecstate::cal_dm_psi(edm.get_paraV_pointer(), wg_ekb, psi, edm);
     }

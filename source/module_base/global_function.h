@@ -358,7 +358,8 @@ T ddot_real(const int& dim, const std::complex<T>* psi_L, const std::complex<T>*
 static inline bool IS_COLUMN_MAJOR_KS_SOLVER(std::string ks_solver)
 {
     return ks_solver == "genelpa" || ks_solver == "elpa" || ks_solver == "scalapack_gvx" || ks_solver == "cusolver"
-           || ks_solver == "cusolvermp" || ks_solver == "cg_in_lcao" || ks_solver == "pexsi" || ks_solver == "lapack";
+           || ks_solver == "cusolvermp" || ks_solver == "cg_in_lcao" || ks_solver == "pexsi" || ks_solver == "lapack"
+           || ks_solver == "ntpoly";
 }
 
 } // namespace GlobalFunc

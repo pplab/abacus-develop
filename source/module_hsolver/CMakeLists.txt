@@ -62,7 +62,12 @@ if(ENABLE_LCAO)
     )
     add_subdirectory(module_pexsi)
   endif()
-
+  if(ENABLE_NTPOLY)
+  list(APPEND objects
+      diago_ntpoly.cpp
+    )
+    add_subdirectory(module_ntpoly)
+  endif()
 endif()
 
 add_library(

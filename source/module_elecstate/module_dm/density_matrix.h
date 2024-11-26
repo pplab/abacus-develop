@@ -225,6 +225,14 @@ class DensityMatrix
     std::vector<TK*> pexsi_EDM;
 #endif
 
+#ifdef __NTPoly
+    /**
+     * @brief EDM storage
+     * used in MD calculation
+     */
+    std::vector<TK*> EDM;
+#endif
+
   private:
     /**
      * @brief HContainer for density matrix in real space for 2D parallelization

@@ -74,6 +74,18 @@ class ElecStateLCAO : public ElecState
     void dmToRho(std::vector<TK*> pexsi_DM, std::vector<TK*> pexsi_EDM);
 #endif
 
+#ifdef __NTPOLY
+    // use for NTPoly
+
+    /**
+     * @brief calculate electronic charge density from pointers of density matrix calculated by NTPoly
+     * @param DM: pointers of density matrix (DMK) 
+     * @param EDM: pointers of energy-weighed density matrix (EDMK), needed by MD, will be
+     * stored in DensityMatrix::EDM
+     */
+    void dmToRho(std::vector<TK*> DM, std::vector<TK*> EDM);
+#endif
+
     DensityMatrix<TK, double>* DM = nullptr;
 
   protected:

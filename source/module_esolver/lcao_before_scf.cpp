@@ -145,7 +145,7 @@ void ESolver_KS_LCAO<TK, TR>::before_scf(UnitCell& ucell, const int istep)
             nsk = PARAM.inp.nspin;
             ncol = this->pv.ncol_bands;
             if (PARAM.inp.ks_solver == "genelpa" || PARAM.inp.ks_solver == "elpa" || PARAM.inp.ks_solver == "lapack"
-                || PARAM.inp.ks_solver == "pexsi" || PARAM.inp.ks_solver == "cusolver"
+                || PARAM.inp.ks_solver == "pexsi" || PARAM.inp.ks_solver == "ntpoly" || PARAM.inp.ks_solver == "cusolver"
                 || PARAM.inp.ks_solver == "cusolvermp")
             {
                 ncol = this->pv.ncol;
