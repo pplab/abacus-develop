@@ -2,11 +2,12 @@
 #include <mpi.h>
 #include <complex>
 #include <memory>
-#include "diago_ntpoly.h"
+#include "module_parameter/parameter.h"
 #include "module_base/global_variable.h"
 #include "module_base/tool_quit.h"
 #include "module_basis/module_ao/parallel_orbitals.h"
 #include "module_ntpoly/simple_ntpoly.h"
+#include "diago_ntpoly.h"
 
 typedef hamilt::MatrixBlock<double> matd;
 typedef hamilt::MatrixBlock<std::complex<double>> matcd;
@@ -15,14 +16,9 @@ namespace hsolver
 {
 template <typename T>
 
-template <typename T>
 DiagoNTPoly<T>::DiagoNTPoly(const Parallel_Orbitals* ParaV_in)
 {
-    int nspin = GlobalV::NSPIN;
-    if (GlobalV::NSPIN == 4)
-    {
-        nspin = 1;
-    }
+    const int nspin = PARAM.inp.nspin==2 ? 2:1;
 
     this->ParaV = ParaV_in;
 
@@ -39,11 +35,7 @@ DiagoNTPoly<T>::DiagoNTPoly(const Parallel_Orbitals* ParaV_in)
 template <typename T>
 DiagoNTPoly<T>::~DiagoNTPoly()
 {
-    int nspin = GlobalV::NSPIN;
-    if (GlobalV::NSPIN == 4)
-    {
-        nspin = 1;
-    }
+    const int nspin = PARAM.inp.nspin==2 ? 2:1;
     for (int i = 0; i < nspin; i++)
     {
         delete[] this->DM[i];
@@ -58,18 +50,18 @@ void DiagoNTPoly<double>::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>&
     ModuleBase::TITLE("DiagoNTPoly", "diag");
     matd h_mat, s_mat;
     phm_in->matrix(h_mat, s_mat);
-    std::vector<double> eigen(GlobalV::NLOCAL, 0.0);
     int ik = psi.get_current_k();
-    NTPoly::simple_ntpoly(this->ParaV->blacs_ctxt,
-                      this->ParaV->nb,
-                      this->ParaV->nrow,
-                      this->ParaV->ncol,
-                      h_mat.p,
-                      s_mat.p,
-                      DM[ik],
-                      EDM[ik]);
-    this->energy = this->ps->get_totalFreeEnergy();
-    this->chemical_potential = this->ps->get_totalEnergyH();
+    const int nelec=PARAM.inp.nelec;
+    const int nspin = PARAM.inp.nspin==2 ? 2:1;
+    const double converge_density = 1e-10;
+    const double converge_overlap = 1e-10;
+    const double threshold = 1e-10;
+    ntpoly::simple_ntpoly(MPI_COMM_WORLD, h_mat.desc,
+                      h_mat.row, h_mat.col,
+                      converge_density, converge_overlap, threshold, 
+                      nelec, nspin, h_mat.p, s_mat.p,
+                      DM[ik], EDM[ik],
+                      this->energy, this->chemical_potential);
 }
 
 template <>

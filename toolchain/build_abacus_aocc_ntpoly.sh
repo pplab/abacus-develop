@@ -4,22 +4,18 @@
 #SBATCH -n 16
 #SBATCH -o install.log
 #SBATCH -e install.err
-# install ABACUS with libxc and deepks
-# JamesMisaka in 2023.08.31
+# install ABACUS with NTPoly support
 
 # Build ABACUS by AOCC
 
-# module load openmpi
-
-ABACUS_DIR=..
+ABACUS_DIR=$(pwd)/..
 TOOL=$(pwd)
 INSTALL_DIR=$TOOL/install
 #source $INSTALL_DIR/setup
 cd $ABACUS_DIR
-ABACUS_DIR=$(pwd)
 
-BUILD_DIR=build_abacus_aocc
-rm -rf $BUILD_DIR
+BUILD_DIR=build_abacus_aocc_ntpoly
+rm -rf $BUILD_DIR/*
 
 AOCL_DIR=/opt/AMD/aocl-linux-aocc-5.0.0/5.0.0/aocc
 PREFIX=$BUILD_DIR
@@ -29,6 +25,8 @@ SCALAPACK_DIR=$AOCL_DIR/lib
 ELPA=/opt/elpa/2024.05.001/openmpi-aocc-aocl
 FFTW3=$AOCL_DIR/lib
 CEREAL=$HOME/project/cereal/include/cereal
+NTPoly_DIR=/opt/NTPoly/3.1.1/openmpi-aocc-aocl
+
 #RAPIDJSON=$HOME/project/rapidjson/include/rapidjson
 #LIBXC=$INSTALL_DIR/libxc-6.2.2
 # LIBRI=$INSTALL_DIR/LibRI-0.2.1.0
@@ -48,9 +46,9 @@ cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$PREFIX \
         -DCEREAL_INCLUDE_DIR=$CEREAL \
         -DENABLE_LCAO=ON \
         -DUSE_OPENMP=ON \
-        -DUSE_ELPA=ON \
-        -DUSE_NTPOLY=ON \
-	-DUSE_CUDA=OFF
+        -DENABLE_NTPOLY=ON \
+	-DNTPoly_DIR=$NTPoly_DIR \
+        -DMPI_FORTRAN_LIBRARIES="-lmpi_mpifh" \
 #        -DENABLE_RAPIDJSON=ON \
 #        -DRapdidJSON_DIR=$RAPIDJSON \
 #         -DENABLE_DEEPKS=1 \
@@ -61,7 +59,7 @@ cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$PREFIX \
 #         -DLIBCOMM_DIR=$LIBCOMM \
 # 	      -DDeePMD_DIR=$DEEPMD \
 # 	      -DTensorFlow_DIR=$DEEPMD \
-
+        -DCMAKE_VERBOSE_MAKEFILE=ON 
 
 # # add mkl env for libtorch to link
 # if one want to install libtorch, mkl should be load in build process
@@ -70,9 +68,9 @@ cmake -B $BUILD_DIR -DCMAKE_INSTALL_PREFIX=$PREFIX \
 
 # if one want's to include deepmd, your system gcc version should be >= 11.3.0 for glibc requirements
 
-cmake --build $BUILD_DIR -j `nproc` 
-cmake --install $BUILD_DIR 2>/dev/null
-
+#cmake --build $BUILD_DIR -j `nproc` 
+#cmake --install $BUILD_DIR 2>/dev/null
+cd $BUILD_DIR && make VERBOSE=1 -j 16 && make install
 # generate abacus_env.sh
 cat << EOF > "${TOOL}/abacus_env.sh"
 #!/bin/bash

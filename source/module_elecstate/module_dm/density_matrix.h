@@ -225,12 +225,12 @@ class DensityMatrix
     std::vector<TK*> pexsi_EDM;
 #endif
 
-#ifdef __NTPoly
+#ifdef __NTPOLY
     /**
      * @brief EDM storage
      * used in MD calculation
      */
-    std::vector<TK*> EDM;
+    std::vector<TK*> ntpoly_EDM;
 #endif
 
   private:

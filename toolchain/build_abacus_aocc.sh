@@ -4,12 +4,9 @@
 #SBATCH -n 16
 #SBATCH -o install.log
 #SBATCH -e install.err
-# install ABACUS with libxc and deepks
-# JamesMisaka in 2023.08.31
 
 # Build ABACUS by AOCC
-
-# module load openmpi
+# Shen Yu, 2024/12/11
 
 ABACUS_DIR=..
 TOOL=$(pwd)
@@ -19,7 +16,7 @@ cd $ABACUS_DIR
 ABACUS_DIR=$(pwd)
 
 BUILD_DIR=build_abacus_aocc
-rm -rf $BUILD_DIR
+rm -rf $BUILD_DIR/*
 
 AOCL_DIR=/opt/AMD/aocl-linux-aocc-5.0.0/5.0.0/aocc
 PREFIX=$BUILD_DIR

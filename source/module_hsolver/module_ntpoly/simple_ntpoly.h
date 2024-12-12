@@ -1,6 +1,11 @@
 #ifndef SIMPLE_NTPOLY_H
 #define SIMPLE_NTPOLY_H
 #include <mpi.h>
+
+// NTPoly headers
+#include <PSMatrix.h>
+namespace ntpoly
+{
 /**
  * Main function for performing NTPoly calculations.
  *
@@ -20,11 +25,12 @@
  * @param chemical_potential The chemical potential.
  * @return Returns 0 if successful, or an error code if an error occurs.
  */
-int simple_ntpoly(MPI_Comm comm_2D, int desc[], 
-    int nrow, int ncol, 
-    double converge_density, double converge_overlap, double threshold, 
-    int nelec, int nspin, double H[], double S[], double DM[], double EDM[], 
-    double energy, double chemical_potential);
+int simple_ntpoly(const MPI_Comm comm_2D, const int desc[], 
+    const int nrow, const int ncol, 
+    const double converge_density, const double converge_overlap, const double threshold, 
+    const int nelec, const int nspin, const double H[], const double S[], 
+    double DM[], double EDM[], 
+    double& energy, double& chemical_potential);
 
 /**
  * Constructs a PSMatrix from a Block Cyclic Distributed (BCD) matrix.
@@ -38,8 +44,9 @@ int simple_ntpoly(MPI_Comm comm_2D, int desc[],
  * @param threshold The threshold below which values are considered zero.
  * @return Returns 0 if successful, or an error code if an error occurs.
  */
-int constructPSMatrixFromBCD(NTPoly::Matrix_ps& PSM, MPI_Comm comm_2D, int desc[],
-    int nrow, int ncol, double M[], double threshold);
+int constructPSMatrixFromBCD(NTPoly::Matrix_ps& PSM, 
+    const MPI_Comm comm_2D, const int desc[],
+    const int nrow, const int ncol, const double M[], const double threshold);
 
 /**
  * Reads all non-zero values from a Block Cyclic Distributed (BCD) matrix into a TripletList.
@@ -53,8 +60,9 @@ int constructPSMatrixFromBCD(NTPoly::Matrix_ps& PSM, MPI_Comm comm_2D, int desc[
  * @param threshold The threshold below which values are considered zero.
  * @return Returns 0 if successful, or an error code if an error occurs.
  */
-int readTripletListFromBCD(NTPoly::TripletList_r& tripletList, MPI_Comm comm_2D, int desc[],
-    int nrow, int ncol, double M[], double threshold);
+int readTripletListFromBCD(NTPoly::TripletList_r& tripletList, 
+    const MPI_Comm comm_2D, const int desc[],
+    const int nrow, const int ncol, const double M[], const double threshold);
 
 /**
  * Constructs a Block Cyclic Distributed (BCD) matrix from a PSMatrix.
@@ -67,8 +75,9 @@ int readTripletListFromBCD(NTPoly::TripletList_r& tripletList, MPI_Comm comm_2D,
  * @param M The BCD matrix to be filled.
  * @return Returns 0 if successful, or an error code if an error occurs.
  */
-int constructBCDFromPSMatrix(NTPoly::Matrix_ps& PSM, MPI_Comm comm_2D, int desc[],
-    int nrow, int ncol, double M[]);
+int constructBCDFromPSMatrix(NTPoly::Matrix_ps& PSM, 
+    const MPI_Comm comm_2D, const int desc[],
+    const int nrow, const int ncol, double M[]);
 
 /**
  * Calculates the global index corresponding to a given local index 
@@ -80,7 +89,7 @@ int constructBCDFromPSMatrix(NTPoly::Matrix_ps& PSM, MPI_Comm comm_2D, int desc[
  * @param myproc The rank of the current process row or column.
  * @return The global index corresponding to the given local index.
  */
-static inline int globalIndex(int localIndex, int nblk, int nprocs, int myproc)
+static inline int globalIndex(const int localIndex, const int nblk, const int nprocs, const int myproc)
 {
     int iblock, gIndex;
     iblock = localIndex / nblk;
@@ -98,9 +107,10 @@ static inline int globalIndex(int localIndex, int nblk, int nprocs, int myproc)
  * @param lcoalProc The rank of the process row or column to which the local index belongs.
  * @return The local index corresponding to the given global index.
  */
-static inline int localIndex(int globalIndex, int nblk, int nprocs, int& lcoalProc)
+static inline int localIndex(const int globalIndex, const int nblk, const int nprocs, int& lcoalProc)
 {
     lcoalProc = int((globalIndex % (nblk * nprocs)) / nblk);
     return int(globalIndex / (nblk * nprocs)) * nblk + globalIndex % nblk;
+}
 }
 #endif // SIMPLE_NTPOLY_H

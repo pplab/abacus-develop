@@ -11,7 +11,7 @@
 #include "Cblacs.h"
 #include "simple_ntpoly.h"
 
-namespace NTPoly
+namespace ntpoly
 {
     /**
      * Main function for performing NTPoly calculations.
@@ -32,11 +32,12 @@ namespace NTPoly
      * @param chemical_potential The chemical potential.
      * @return Returns 0 if successful, or an error code if an error occurs.
      */
-    int simple_ntpoly(MPI_Comm comm_2D, int desc[], 
-        int nrow, int ncol, 
-        double converge_density, double converge_overlap, double threshold, 
-        int nelec, int nspin, double H[], double S[], double DM[], double EDM[], 
-        double energy, double chemical_potential)
+    int simple_ntpoly(const MPI_Comm comm_2D, const int desc[], 
+        const int nrow, const int ncol, 
+        const double converge_density, const double converge_overlap, const double threshold, 
+        const int nelec, const int nspin, const double H[], const double S[], 
+        double DM[], double EDM[], 
+        double& energy, double& chemical_potential)
     {
         const int nFull=desc[2];
         NTPoly::Matrix_ps Hamiltonian(nFull);
@@ -92,8 +93,9 @@ namespace NTPoly
      * @param threshold The threshold below which values are considered zero.
      * @return Returns 0 if successful, or an error code if an error occurs.
      */
-    int constructPSMatrixFromBCD(NTPoly::Matrix_ps& PSM, MPI_Comm comm_2D, int desc[],
-        int nrow, int ncol, double M[], double threshold)
+    int constructPSMatrixFromBCD(NTPoly::Matrix_ps& PSM,
+        const MPI_Comm comm_2D, const int desc[],
+        const int nrow, const int ncol, const double M[], const double threshold)
     {
         // init PSMatrix
         const int nFull=desc[2];    
@@ -122,8 +124,9 @@ namespace NTPoly
      * @param threshold The threshold below which values are considered zero.
      * @return Returns 0 if successful, or an error code if an error occurs.
      */
-    int readTripletListFromBCD(NTPoly::TripletList_r& tripletList, MPI_Comm comm_2D, int desc[],
-        int nrow, int ncol, double M[], double threshold)
+    int readTripletListFromBCD(NTPoly::TripletList_r& tripletList,
+        const MPI_Comm comm_2D, const int desc[],
+        const int nrow, const int ncol, const double M[], const double threshold)
     {
         int blacs_context=desc[1];
         const int nblk=desc[4];
@@ -158,8 +161,9 @@ namespace NTPoly
      * @param M The BCD matrix to be filled.
      * @return Returns 0 if successful, or an error code if an error occurs.
      */
-    int constructBCDFromPSMatrix(NTPoly::Matrix_ps& PSM, MPI_Comm comm_2D, int desc[],
-        int nrow, int ncol, double M[])
+    int constructBCDFromPSMatrix(NTPoly::Matrix_ps& PSM, 
+        const MPI_Comm comm_2D, const int desc[],
+        const int nrow, const int ncol, double M[])
     {
         int blacs_context=desc[1];
         const int nblk=desc[4];
@@ -193,5 +197,5 @@ namespace NTPoly
         }
         return 0;
     }
-｝
+}
 #endif // NTPOLY

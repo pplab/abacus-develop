@@ -188,7 +188,7 @@ void ElecStateLCAO<std::complex<double>>::dmToRho(std::vector<std::complex<doubl
 
 #ifdef __NTPOLY
 template <>
-void ElecStateLCAO<double>::dmToRho(std::vector<double*> DM, std::vector<double*> EDM)
+void ElecStateLCAO<double>::dmToRho(std::vector<double*> DM_in, std::vector<double*> EDM_in)
 {
     ModuleBase::timer::tick("ElecStateLCAO", "dmToRho");
 
@@ -197,14 +197,14 @@ void ElecStateLCAO<double>::dmToRho(std::vector<double*> DM, std::vector<double*
     {
         nspin = 1;
     }
-
-    this->get_DM()->EDM = EDM;
+    
+    this->get_DM()->ntpoly_EDM = EDM_in;
 
     for (int is = 0; is < nspin; is++)
     {
-        this->DM->set_DMK_pointer(is, DM[is]);
+        this->DM->set_DMK_pointer(is, DM_in[is]);
     }
-    DM->cal_DMR();
+    this->DM->cal_DMR();
 
     for (int is = 0; is < PARAM.inp.nspin; is++)
     {
@@ -216,15 +216,15 @@ void ElecStateLCAO<double>::dmToRho(std::vector<double*> DM, std::vector<double*
     this->gint_gamma->transfer_DM2DtoGrid(this->DM->get_DMR_vector()); // transfer DM2D to DM_grid in gint
     Gint_inout inout(this->charge->rho, Gint_Tools::job_type::rho, PARAM.inp.nspin);
     this->gint_gamma->cal_gint(&inout);
-    if (XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5)
-    {
-        for (int is = 0; is < PARAM.inp.nspin; is++)
-        {
-            ModuleBase::GlobalFunc::ZEROS(this->charge->kin_r[0], this->charge->nrxx);
-        }
-        Gint_inout inout1(this->charge->kin_r, Gint_Tools::job_type::tau);
-        this->gint_gamma->cal_gint(&inout1);
-    }
+    // if (XC_Functional::get_func_type() == 3 || XC_Functional::get_func_type() == 5)
+    // {
+    //     for (int is = 0; is < PARAM.inp.nspin; is++)
+    //     {
+    //         ModuleBase::GlobalFunc::ZEROS(this->charge->kin_r[0], this->charge->nrxx);
+    //     }
+    //     Gint_inout inout1(this->charge->kin_r, Gint_Tools::job_type::tau);
+    //     this->gint_gamma->cal_gint(&inout1);
+    // }
 
     this->charge->renormalize_rho();
 

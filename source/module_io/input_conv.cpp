@@ -29,9 +29,6 @@
 #ifdef __PEXSI
 #include "module_hsolver/module_pexsi/pexsi_solver.h"
 #endif
-#ifdef __NTPOLY
-#include "module_hsolver/module_ntpoly/ntpoly_solver.h"
-#endif
 #ifdef __MPI
 #include "module_hsolver/diago_elpa.h"
 #include "module_hsolver/diago_elpa_native.h"

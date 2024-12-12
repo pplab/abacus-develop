@@ -2,6 +2,7 @@
 #include "module_elecstate/module_dm/cal_dm_psi.h"
 #include "module_base/memory.h"
 #include "module_parameter/parameter.h"
+#include "module_elecstate/elecstate_lcao.h"
 template<>
 elecstate::DensityMatrix<double, double> Force_LCAO<double>::cal_edm(const elecstate::ElecState* pelec,
     const psi::Psi<double>& psi,
@@ -45,7 +46,7 @@ elecstate::DensityMatrix<double, double> Force_LCAO<double>::cal_edm(const elecs
         auto pes = dynamic_cast<const elecstate::ElecStateLCAO<double>*>(pelec);
         for (int ik = 0; ik < nspin; ik++)
         {
-            edm.set_DMK_pointer(ik, pes->get_DM()->EDM[ik]);
+            edm.set_DMK_pointer(ik, pes->get_DM()->ntpoly_EDM[ik]);
         }
         
     }
