@@ -6,6 +6,7 @@
 #include <PSMatrix.h>
 namespace ntpoly
 {
+   const bool for_debug=true;
 /**
  * Main function for performing NTPoly calculations.
  *

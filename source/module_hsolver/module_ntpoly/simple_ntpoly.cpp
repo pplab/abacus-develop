@@ -42,11 +42,11 @@ namespace ntpoly
         double& energy, double& chemical_potential)
     {
         const int nFull=desc[2];
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter simple_ntpoly, nFull", nFull);
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter simple_ntpoly, nFull", nFull);
         // init default process grid
         int process_slice=1;
         NTPoly::ConstructGlobalProcessGrid(comm_2D, process_slice);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "GlobalProcessGrid is constructed");
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "GlobalProcessGrid is constructed");
 
         // init PSMatrices of Hamiltonian, Overlap, ISQOverlap, Density and EnergyDensity
         NTPoly::Matrix_ps Hamiltonian(nFull);
@@ -54,7 +54,15 @@ namespace ntpoly
         NTPoly::Matrix_ps ISQOverlap(nFull);
         NTPoly::Matrix_ps Density(nFull);
         NTPoly::Matrix_ps EnergyDensity(nFull);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "All PSMatrices are allocated, ActualDimension is", Hamiltonian.GetActualDimension());
+        if(for_debug) 
+        {
+            ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+                "All PSMatrices are allocated, ActualDimension is", 
+                Hamiltonian.GetActualDimension());
+            ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+                "LogicalDimension is", 
+                Hamiltonian.GetLogicalDimension());
+        }
 
         // convert H and S from BCD matrix to PSMatrix
         constructPSMatrixFromBCD(Hamiltonian, comm_2D, desc, nrow, ncol, H, threshold);
@@ -65,7 +73,7 @@ namespace ntpoly
         NTPoly::Permutation permutation(nFull);
         permutation.SetRandomPermutation();
 
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "permutation is done");
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "permutation is done");
 
         // set solver parameters
         NTPoly::SolverParameters solver_parameters;
@@ -77,7 +85,7 @@ namespace ntpoly
         // InverseSquareRoot(Overlap, ISQOverlap, solver_parameters)
         NTPoly::SquareRootSolvers::InverseSquareRoot(Overlap, ISQOverlap, solver_parameters);
 
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "ISQOverlap is done");
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "ISQOverlap is done");
 
         // Solve the Density Matrix.
         // Change the solver variable for computing the density matrix.
@@ -88,18 +96,18 @@ namespace ntpoly
                         Density, energy, chemical_potential, solver_parameters);
         Density.Scale(spin_degeneracy);
         
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Density Matrix is done");
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Density Matrix is done");
         // convert DM from the PSMatrix to a BCD matrix
         constructBCDFromPSMatrix(Density, comm_2D, desc, nrow, ncol, DM);
 
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Density Matrix is converted to BCD format");
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Density Matrix is converted to BCD format");
 
         // Solve the Energy Density Matrix
         NTPoly::DensityMatrixSolvers::EnergyDensityMatrix(Hamiltonian, Density, EnergyDensity, threshold);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "EnergyDensity Matrix is done");
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "EnergyDensity Matrix is done");
 
         constructBCDFromPSMatrix(EnergyDensity, comm_2D, desc, nrow, ncol, EDM);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "EnergyDensity Matrix is converted to BCD format");
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "EnergyDensity Matrix is converted to BCD format");
         return 0;
     }
 
@@ -130,10 +138,12 @@ namespace ntpoly
         {
             readTripletListFromBCD(tripletList, comm_2D, desc, nrow, ncol, M, threshold);
         }
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "the BCD Matrix is converted to tripletList, non-zero elements are:", tripletList.GetSize());
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+            "the BCD Matrix is converted to tripletList, non-zero elements are:", tripletList.GetSize());
         // fill PSMatrix from tripletlist
         PSM.FillFromTripletList(tripletList);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "the PSMatrix is filled from tripletList, size is", PSM.GetSize());
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+            "the PSMatrix is filled from tripletList, size is", PSM.GetSize());
         return 0;
     }
 
@@ -157,7 +167,8 @@ namespace ntpoly
         const int nblk=desc[4];
         int nprow, npcol, myprow, mypcol;
         Cblacs_gridinfo(blacs_context, &nprow, &npcol, &myprow, &mypcol);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter readTripletListFromBCD, initial tripletList size is", tripletList.GetSize());
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+            "enter readTripletListFromBCD, initial tripletList size is", tripletList.GetSize());
         // read all non-zero values from BCD matrix into a tripletlist
         NTPoly::Triplet_r tmp_t;
         for(int i=0; i<ncol; ++i)
@@ -195,7 +206,8 @@ namespace ntpoly
         const int nblk=desc[4];
         int nprow, npcol, myprow, mypcol;
         Cblacs_gridinfo(blacs_context, &nprow, &npcol, &myprow, &mypcol);
-        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter constructBCDFromPSMatrix, nblk is", nblk);
+        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+            "enter constructBCDFromPSMatrix, nblk is", nblk);
         // gather matrix elements of current process to a tripletlist from the PSMatrix
         // and then fill the BCD matrix
         NTPoly::TripletList_r tripletList;
