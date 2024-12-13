@@ -64,12 +64,6 @@ PW_Basis::PW_Basis()
 PW_Basis::~PW_Basis()
 {
 }
-FFT::FFT()
-{
-}
-FFT::~FFT()
-{
-}
 FFT_Bundle::~FFT_Bundle(){};
 void PW_Basis::initgrids(const double lat0_in, const ModuleBase::Matrix3 latvec_in, const double gridecut)
 {
@@ -93,7 +87,7 @@ Structure_Factor::Structure_Factor()
 Structure_Factor::~Structure_Factor()
 {
 }
-void Structure_Factor::setup_structure_factor(UnitCell* Ucell, const ModulePW::PW_Basis* rho_basis)
+void Structure_Factor::setup_structure_factor(const UnitCell* Ucell, const ModulePW::PW_Basis* rho_basis)
 {
 }
 
@@ -138,7 +132,7 @@ TEST_F(ChargeExtraTest, InitCEWarningQuit)
     PARAM.input.chg_extrap = "wwww";
     testing::internal::CaptureStdout();
     EXPECT_EXIT(CE.Init_CE(PARAM.input.nspin, ucell->nat, charge.rhopw->nrxx, PARAM.input.chg_extrap),
-                ::testing::ExitedWithCode(0),
+                ::testing::ExitedWithCode(1),
                 "");
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("charge extrapolation method is not available"));

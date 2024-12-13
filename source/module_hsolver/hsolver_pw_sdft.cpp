@@ -11,7 +11,8 @@
 namespace hsolver
 {
 template <typename T, typename Device>
-void HSolverPW_SDFT<T, Device>::solve(hamilt::Hamilt<T, Device>* pHamilt,
+void HSolverPW_SDFT<T, Device>::solve(const UnitCell& ucell,
+                                      hamilt::Hamilt<T, Device>* pHamilt,
                                       psi::Psi<T, Device>& psi,
                                       psi::Psi<T>& psi_cpu,
                                       elecstate::ElecState* pes,
@@ -28,32 +29,10 @@ void HSolverPW_SDFT<T, Device>::solve(hamilt::Hamilt<T, Device>* pHamilt,
     const int nbands = psi.get_nbands();
     const int nks = psi.get_nk();
 
-    //---------------------------------------------------------------------------------------------------------------
-    //---------------------------------for psi init guess!!!!--------------------------------------------------------
-    //---------------------------------------------------------------------------------------------------------------
-    // if (!PARAM.inp.psi_initializer && !this->initialed_psi && this->basis_type == "pw")
-    // {
-    //     for (int ik = 0; ik < nks; ++ik)
-    //     {
-    //         /// update H(k) for each k point
-    //         pHamilt->updateHk(ik);
-
-    //         if (nbands > 0 && GlobalV::MY_STOGROUP == 0)
-    //         {
-    //             /// update psi pointer for each k point
-    //             psi.fix_k(ik);
-
-    //             /// for psi init guess!!!!
-    //             hamilt::diago_PAO_in_pw_k2(this->ctx, ik, psi, this->wfc_basis, this->pwf, pHamilt);
-    //         }
-    //     }
-    // }
-    //---------------------------------------------------------------------------------------------------------------
-    //---------------------------------------------------------------------------------------------------------------
-    //---------------------------------------------------------------------------------------------------------------
-
     // prepare for the precondition of diagonalization
     std::vector<double> precondition(psi.get_nbasis(), 0.0);
+
+    this->ethr_band.resize(psi.get_nbands(), this->diag_thr);
 
     // report if the specified diagonalization method is not supported
     const std::initializer_list<std::string> _methods = {"cg", "dav", "dav_subspace", "bpcg"};
@@ -108,35 +87,40 @@ void HSolverPW_SDFT<T, Device>::solve(hamilt::Hamilt<T, Device>* pHamilt,
     // prepare sqrt{f(\hat{H})}|\chi> to calculate density, force and stress
     stoiter.calHsqrtchi(stowf);
 
+    // calculate eband = \sum_{ik,ib} w(ik)f(ik,ib)e_{ikib}, demet = -TS
     elecstate::ElecStatePW<T, Device>* pes_pw = static_cast<elecstate::ElecStatePW<T, Device>*>(pes);
     if (GlobalV::MY_STOGROUP == 0)
     {
         pes_pw->calEBand();
     }
+    if (nbands > 0)
+    {
+#ifdef __MPI
+        pes->f_en.eband /= GlobalV::NPROC_IN_POOL;
+        MPI_Allreduce(MPI_IN_PLACE, &pes->f_en.eband, 1, MPI_DOUBLE, MPI_SUM, STO_WORLD);
+        MPI_Bcast(&pes->f_en.eband, 1, MPI_DOUBLE, 0, PARAPW_WORLD);
+#endif
+    }
+    stoiter.sum_stoeband(stowf, pes_pw, pHamilt, wfc_basis);
+    
+    
+
+    // for nscf, skip charge
     if (skip_charge)
     {
         ModuleBase::timer::tick("HSolverPW_SDFT", "solve");
         return;
     }
+
     //(5) calculate new charge density
     // calculate KS rho.
     pes_pw->init_rho_data();
     if (nbands > 0)
     {
         pes_pw->psiToRho(psi);
-#ifdef __MPI
-        MPI_Bcast(&pes->f_en.eband, 1, MPI_DOUBLE, 0, PARAPW_WORLD);
-#endif
-    }
-    else
-    {
-        for (int is = 0; is < this->nspin; is++)
-        {
-            setmem_var_op()(this->ctx, pes_pw->rho[is], 0, pes_pw->charge->nrxx);
-        }
     }
     // calculate stochastic rho
-    stoiter.sum_stoband(stowf, pes_pw, pHamilt, wfc_basis);
+    stoiter.cal_storho(ucell, stowf, pes_pw,wfc_basis);
 
     // will do rho symmetry and energy calculation in esolver
     ModuleBase::timer::tick("HSolverPW_SDFT", "solve");

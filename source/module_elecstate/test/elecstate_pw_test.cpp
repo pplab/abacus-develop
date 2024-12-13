@@ -115,12 +115,14 @@ std::complex<double>* pseudopot_cell_vnl::get_vkb_data<double>() const
 }
 template <>
 void pseudopot_cell_vnl::getvnl<float, base_device::DEVICE_CPU>(base_device::DEVICE_CPU*,
+                                                                const UnitCell&,
                                                                 int const&,
                                                                 std::complex<float>*) const
 {
 }
 template <>
 void pseudopot_cell_vnl::getvnl<double, base_device::DEVICE_CPU>(base_device::DEVICE_CPU*,
+                                                                 const UnitCell&,
                                                                  int const&,
                                                                  std::complex<double>*) const
 {
@@ -139,7 +141,7 @@ K_Vectors::~K_Vectors()
 {
 }
 
-void Charge::set_rho_core(ModuleBase::ComplexMatrix const&)
+void Charge::set_rho_core(ModuleBase::ComplexMatrix const&, const bool*)
 {
 }
 void Charge::set_rho_core_paw()

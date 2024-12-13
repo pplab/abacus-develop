@@ -68,6 +68,8 @@ ESolver_KS<T, Device>::ESolver_KS()
     ///----------------------------------------------------------
     p_chgmix = new Charge_Mixing();
     p_chgmix->set_rhopw(this->pw_rho, this->pw_rhod);
+    this->ppcell.cell_factor = PARAM.inp.cell_factor;
+    this->p_locpp = &this->ppcell;
 }
 
 //------------------------------------------------------------------------------
@@ -81,6 +83,7 @@ ESolver_KS<T, Device>::~ESolver_KS()
     delete this->pw_wfc;
     delete this->p_hamilt;
     delete this->p_chgmix;
+    this->ppcell.release_memory();
 }
 
 //------------------------------------------------------------------------------
@@ -106,6 +109,7 @@ void ESolver_KS<T, Device>::before_all_runners(UnitCell& ucell, const Input_para
                          PARAM.inp.mixing_gg0_min,
                          PARAM.inp.mixing_angle,
                          PARAM.inp.mixing_dmr);
+    p_chgmix->init_mixing();
 
     /// PAW Section
 #ifdef USE_PAW
@@ -209,7 +213,7 @@ void ESolver_KS<T, Device>::before_all_runners(UnitCell& ucell, const Input_para
     }
 
     //! 6) Setup the k points according to symmetry.
-    this->kv.set(ucell.symm, PARAM.inp.kpoint_file, PARAM.inp.nspin, ucell.G, ucell.latvec, GlobalV::ofs_running);
+    this->kv.set(ucell,ucell.symm, PARAM.inp.kpoint_file, PARAM.inp.nspin, ucell.G, ucell.latvec, GlobalV::ofs_running);
 
     ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "INIT K-POINTS");
 
@@ -423,9 +427,7 @@ void ESolver_KS<T, Device>::runner(UnitCell& ucell, const int istep)
     ModuleBase::timer::tick(this->classname, "runner");
 
     // 2) before_scf (electronic iteration loops)
-    ModuleBase::timer::tick(this->classname, "before_scf");
     this->before_scf(ucell, istep);
-    ModuleBase::timer::tick(this->classname, "before_scf");
 
     // 3) write charge density
     if (PARAM.inp.dm_to_rho)
@@ -442,15 +444,16 @@ void ESolver_KS<T, Device>::runner(UnitCell& ucell, const int istep)
     this->diag_ethr = PARAM.inp.pw_diag_thr;
     for (int iter = 1; iter <= this->maxniter; ++iter)
     {
-        // 6) initialization of SCF iterations
+        // 5) initialization of SCF iterations
         this->iter_init(ucell, istep, iter);
 
+        // 6) use Hamiltonian to obtain charge density
         this->hamilt2density(ucell, istep, iter, diag_ethr);
 
-        // 10) finish scf iterations
+        // 7) finish scf iterations
         this->iter_finish(ucell, istep, iter);
 
-        // 13) check convergence
+        // 8) check convergence
         if (this->conv_esolver || this->oscillate_esolver)
         {
             this->niter = iter;
@@ -462,14 +465,21 @@ void ESolver_KS<T, Device>::runner(UnitCell& ucell, const int istep)
         }
     } // end scf iterations
 
-    // 15) after scf
-    ModuleBase::timer::tick(this->classname, "after_scf");
+    // 9) after scf
     this->after_scf(ucell, istep);
-    ModuleBase::timer::tick(this->classname, "after_scf");
 
     ModuleBase::timer::tick(this->classname, "runner");
     return;
 };
+
+template <typename T, typename Device>
+void ESolver_KS<T, Device>::before_scf(UnitCell& ucell, const int istep)
+{
+    ModuleBase::TITLE("ESolver_KS", "before_scf");
+
+    //! 1) call before_scf() of ESolver_FP
+    ESolver_FP::before_scf(ucell, istep);
+}
 
 template <typename T, typename Device>
 void ESolver_KS<T, Device>::iter_init(UnitCell& ucell, const int istep, const int iter)
@@ -726,6 +736,8 @@ void ESolver_KS<T, Device>::iter_finish(UnitCell& ucell, const int istep, int& i
 template <typename T, typename Device>
 void ESolver_KS<T, Device>::after_scf(UnitCell& ucell, const int istep)
 {
+    ModuleBase::TITLE("ESolver_KS", "after_scf");
+
     // 1) call after_scf() of ESolver_FP
     ESolver_FP::after_scf(ucell, istep);
 

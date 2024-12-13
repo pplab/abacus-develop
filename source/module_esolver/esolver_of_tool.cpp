@@ -5,6 +5,7 @@
 #include "module_elecstate/potentials/gatefield.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_parameter/parameter.h"
+#include "module_elecstate/cal_ux.h"
 
 namespace ModuleESolver
 {
@@ -27,7 +28,7 @@ void ESolver_OF::init_elecstate(UnitCell& ucell)
     this->pelec->pot = new elecstate::Potential(this->pw_rhod,
                                                 this->pw_rho,
                                                 &ucell,
-                                                &(GlobalC::ppcell.vloc),
+                                                &(this->locpp.vloc),
                                                 &(this->sf),
                                                 &(this->pelec->f_en.etxc),
                                                 &(this->pelec->f_en.vtxc));
@@ -132,10 +133,7 @@ void ESolver_OF::cal_potential(double* ptemp_phi, double* rdLdphi, UnitCell& uce
         }
     }
 
-    if (PARAM.inp.nspin == 4) 
-    {
-        ucell.cal_ux();
-    }
+    elecstate::cal_ux(ucell);
     this->pelec->pot->update_from_charge(this->ptemp_rho_, &ucell);
     ModuleBase::matrix& vr_eff = this->pelec->pot->get_effective_v();
 
@@ -172,9 +170,7 @@ void ESolver_OF::cal_dEdtheta(double** ptemp_phi, Charge* temp_rho, UnitCell& uc
 {
     double* dphi_dtheta = new double[this->pw_rho->nrxx];
 
-    if (PARAM.inp.nspin == 4) {
-        ucell.cal_ux();
-}
+    elecstate::cal_ux(ucell);
     this->pelec->pot->update_from_charge(temp_rho, &ucell);
     ModuleBase::matrix& vr_eff = this->pelec->pot->get_effective_v();
 

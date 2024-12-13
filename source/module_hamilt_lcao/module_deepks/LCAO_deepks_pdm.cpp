@@ -14,8 +14,7 @@
 //3. check_projected_dm, which prints pdm to descriptor.dat
 
 //4. cal_gdmx, calculating gdmx (and optionally gdm_epsl for stress) for gamma point
-//5. cal_gdmx_k, counterpart of 3, for multi-k
-//6. check_gdmx, which prints gdmx to a series of .dat files
+//5. check_gdmx, which prints gdmx to a series of .dat files
 
 #ifdef __DEEPKS
 
@@ -67,10 +66,10 @@ void LCAO_Deepks::read_projected_DM(bool read_pdm_file, bool is_equiv, const Num
 
 //this subroutine performs the calculation of projected density matrices
 //pdm_m,m'=\sum_{mu,nu} rho_{mu,nu} <chi_mu|alpha_m><alpha_m'|chi_nu>
-void LCAO_Deepks::cal_projected_DM(const elecstate::DensityMatrix<double, double>* dm, 
-    const UnitCell &ucell,
-    const LCAO_Orbitals &orb,
-    Grid_Driver& GridD)
+void LCAO_Deepks::cal_projected_DM(const elecstate::DensityMatrix<double, double>* dm,
+                                   const UnitCell& ucell,
+                                   const LCAO_Orbitals& orb,
+                                   const Grid_Driver& GridD)
 {
     ModuleBase::TITLE("LCAO_Deepks", "cal_projected_DM");
 
@@ -317,10 +316,10 @@ void LCAO_Deepks::cal_projected_DM(const elecstate::DensityMatrix<double, double
     return;
 }
 
-void LCAO_Deepks::cal_projected_DM_k(const elecstate::DensityMatrix<std::complex<double>, double>* dm,
-    const UnitCell &ucell,
-    const LCAO_Orbitals &orb,
-    Grid_Driver& GridD)
+void LCAO_Deepks::cal_projected_DM(const elecstate::DensityMatrix<std::complex<double>, double>* dm,
+                                   const UnitCell& ucell,
+                                   const LCAO_Orbitals& orb,
+                                   const Grid_Driver& GridD)
 {
     // if pdm has been initialized, skip the calculation
     if(this->init_pdm)

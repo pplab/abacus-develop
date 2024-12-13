@@ -5,6 +5,11 @@ remove_definitions(-D__EXX)
 
 if (ENABLE_MPI)
   AddTest(
+    TARGET hsolver_parak2d_test
+    LIBS parameter  ${math_libs} base device MPI::MPI_CXX
+    SOURCES parallel_k2d_test.cpp ../parallel_k2d.cpp ../../module_cell/parallel_kpoints.cpp
+  )
+  AddTest(
     TARGET HSolver_bpcg
     LIBS parameter  ${math_libs} base psi device container
     SOURCES diago_bpcg_test.cpp ../diago_bpcg.cpp  ../diago_iter_assist.cpp  
@@ -100,7 +105,7 @@ if (ENABLE_MPI)
     AddTest(
       TARGET HSolver_LCAO_PEXSI
       LIBS parameter  ${math_libs} ${PEXSI_LIBRARY} ${SuperLU_DIST_LIBRARY} ${ParMETIS_LIBRARY} ${METIS_LIBRARY} MPI::MPI_CXX base psi device pexsi
-      SOURCES diago_pexsi_test.cpp ../diago_pexsi.cpp ../../module_basis/module_ao/parallel_orbitals.cpp ../../module_basis/module_ao/parallel_2d.cpp
+      SOURCES diago_pexsi_test.cpp ../diago_pexsi.cpp ../../module_basis/module_ao/parallel_orbitals.cpp
     )
     endif()
   endif()
@@ -147,11 +152,7 @@ install(FILES PEXSI-DM-GammaOnly-Si2.dat DESTINATION ${CMAKE_CURRENT_BINARY_DIR}
 install(FILES diago_pexsi_parallel_test.sh DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 install(FILES parallel_k2d_test.sh DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
-AddTest(
-  TARGET hsolver_parak2d_test
-  LIBS parameter  ${math_libs} base device MPI::MPI_CXX
-  SOURCES parallel_k2d_test.cpp ../parallel_k2d.cpp ../../module_cell/parallel_kpoints.cpp  ../../module_basis/module_ao/parallel_2d.cpp
-)
+
 
 find_program(BASH bash)
 if (ENABLE_MPI)

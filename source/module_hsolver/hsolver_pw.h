@@ -1,10 +1,11 @@
 #ifndef HSOLVERPW_H
 #define HSOLVERPW_H
 
-#include "hsolver.h"
+#include "module_elecstate/elecstate.h"
+#include "module_hamilt_general/hamilt.h"
 #include "module_base/macros.h"
 #include "module_basis/module_pw/pw_basis_k.h"
-#include "module_hamilt_pw/hamilt_pwdft/wavefunc.h"
+#include "module_psi/wavefunc.h"
 
 namespace hsolver
 {
@@ -46,7 +47,9 @@ class HSolverPW
                double* out_eigenvalues,
                const int rank_in_pool_in,
                const int nproc_in_pool_in,
-               const bool skip_charge);
+               const bool skip_charge,
+               const double tpiba,
+               const int nat);
 
   protected:
     // diago caller
@@ -81,18 +84,19 @@ class HSolverPW
     int rank_in_pool = 0;
     int nproc_in_pool = 1;
 
+    std::vector<double> ethr_band;
+
   private:
     /// @brief calculate the threshold for iterative-diagonalization for each band
     void cal_ethr_band(const double& wk, const double* wg, const double& ethr, std::vector<double>& ethrs);
 
-    std::vector<double> ethr_band;
-
 #ifdef USE_PAW
-    void paw_func_in_kloop(const int ik);
+    void paw_func_in_kloop(const int ik,
+                           const double tpiba);
 
     void call_paw_cell_set_currentk(const int ik);
 
-    void paw_func_after_kloop(psi::Psi<T, Device>& psi, elecstate::ElecState* pes);
+    void paw_func_after_kloop(psi::Psi<T, Device>& psi, elecstate::ElecState* pes,const double tpiba,const int nat);
 #endif
 };
 

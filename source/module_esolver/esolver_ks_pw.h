@@ -2,7 +2,7 @@
 #define ESOLVER_KS_PW_H
 #include "./esolver_ks.h"
 #include "module_hamilt_pw/hamilt_pwdft/operator_pw/velocity_pw.h"
-#include "module_hamilt_pw/hamilt_pwdft/psiinit.h"
+#include "module_psi/psi_init.h"
 
 #include <memory>
 #include <module_base/macros.h>
@@ -46,7 +46,7 @@ class ESolver_KS_PW : public ESolver_KS<T, Device>
 
     virtual void hamilt2density_single(UnitCell& ucell, const int istep, const int iter, const double ethr) override;
 
-    virtual void allocate_hamilt();
+    virtual void allocate_hamilt(const UnitCell& ucell);
     virtual void deallocate_hamilt();
 
     //! hide the psi in ESolver_KS for tmp use

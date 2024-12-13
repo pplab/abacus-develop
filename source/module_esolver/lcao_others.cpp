@@ -1,3 +1,4 @@
+#include "module_elecstate/cal_ux.h"
 #include "module_elecstate/module_charge/symmetry_rho.h"
 #include "module_esolver/esolver_ks_lcao.h"
 #include "module_hamilt_lcao/hamilt_lcaodft/hamilt_lcao.h"
@@ -47,7 +48,10 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
     if (cal_type == "test_memory")
     {
         std::cout << FmtCore::format("\n * * * * * *\n << Start %s.\n", "testing memory");
-        Cal_Test::test_memory(this->pw_rho,
+        Cal_Test::test_memory(ucell.nat,
+                              ucell.ntype,
+                              ucell.GGT,
+                              this->pw_rho,
                               this->pw_wfc,
                               this->p_chgmix->get_mixing_mode(),
                               this->p_chgmix->get_mixing_ndim());
@@ -61,7 +65,7 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
         double search_radius = PARAM.inp.search_radius;
         atom_arrange::search(PARAM.inp.search_pbc,
                              GlobalV::ofs_running,
-                             GlobalC::GridD,
+                             this->gd,
                              ucell,
                              search_radius,
                              PARAM.inp.test_atom_input,
@@ -80,7 +84,7 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
 
     atom_arrange::search(PARAM.inp.search_pbc,
                          GlobalV::ofs_running,
-                         GlobalC::GridD,
+                         this->gd,
                          ucell,
                          search_radius,
                          PARAM.inp.test_atom_input);
@@ -110,7 +114,7 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
                              this->pw_rho->nplane,
                              this->pw_rho->startz_current,
                              ucell,
-                             GlobalC::GridD,
+                             this->gd,
                              dr_uniform,
                              rcuts,
                              psi_u,
@@ -127,7 +131,7 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
     // (2)For each atom, calculate the adjacent atoms in different cells
     // and allocate the space for H(R) and S(R).
     // If k point is used here, allocate HlocR after atom_arrange.
-    this->RA.for_2d(this->pv, PARAM.globalv.gamma_only_local, orb_.cutoffs());
+    this->RA.for_2d(ucell, this->gd, this->pv, PARAM.globalv.gamma_only_local, orb_.cutoffs());
 
     // 2. density matrix extrapolation
 
@@ -174,7 +178,7 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
     }
 
     // prepare grid in Gint
-    LCAO_domain::grid_prepare(this->GridT, this->GG, this->GK, orb_, *this->pw_rho, *this->pw_big);
+    LCAO_domain::grid_prepare(this->GridT, this->GG, this->GK, ucell, orb_, *this->pw_rho, *this->pw_big);
 
     // init Hamiltonian
     if (this->p_hamilt != nullptr)
@@ -188,6 +192,8 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
         this->p_hamilt = new hamilt::HamiltLCAO<TK, TR>(
             PARAM.globalv.gamma_only_local ? &(this->GG) : nullptr,
             PARAM.globalv.gamma_only_local ? nullptr : &(this->GK),
+            ucell,
+            this->gd,
             &this->pv,
             this->pelec->pot,
             this->kv,
@@ -211,15 +217,11 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
     {
         const Parallel_Orbitals* pv = &this->pv;
         // build and save <psi(0)|alpha(R)> at beginning
-        GlobalC::ld.build_psialpha(PARAM.inp.cal_force,
-                                   ucell,
-                                   orb_,
-                                   GlobalC::GridD,
-                                   *(two_center_bundle_.overlap_orb_alpha));
+        GlobalC::ld.build_psialpha(PARAM.inp.cal_force, ucell, orb_, this->gd, *(two_center_bundle_.overlap_orb_alpha));
 
         if (PARAM.inp.deepks_out_unittest)
         {
-            GlobalC::ld.check_psialpha(PARAM.inp.cal_force, ucell, orb_, GlobalC::GridD);
+            GlobalC::ld.check_psialpha(PARAM.inp.cal_force, ucell, orb_, this->gd);
         }
     }
 #endif
@@ -236,7 +238,6 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
                    &(this->pv),
                    PARAM.inp.nspin,
                    this->kv,
-                   PARAM.inp.ks_solver,
                    this->p_hamilt,
                    this->psi,
                    this->pelec);
@@ -245,13 +246,10 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
     // cal_ux should be called before init_scf because
     // the direction of ux is used in noncoline_rho
     //=========================================================
-    if (PARAM.inp.nspin == 4)
-    {
-        ucell.cal_ux();
-    }
+    elecstate::cal_ux(ucell);
 
     // pelec should be initialized before these calculations
-    this->pelec->init_scf(istep, this->sf.strucFac, ucell.symm);
+    this->pelec->init_scf(istep, this->sf.strucFac, this->ppcell.numeric, ucell.symm);
     // self consistent calculations for electronic ground state
     if (cal_type == "get_pchg")
     {
@@ -281,7 +279,7 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
                       PARAM.globalv.global_out_dir,
                       GlobalV::ofs_warning,
                       &ucell,
-                      &GlobalC::GridD,
+                      &this->gd,
                       this->kv);
         }
         else
@@ -310,7 +308,7 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
                       PARAM.globalv.global_out_dir,
                       GlobalV::ofs_warning,
                       &ucell,
-                      &GlobalC::GridD,
+                      &this->gd,
                       this->kv,
                       PARAM.inp.if_separate_k,
                       &GlobalC::Pgrid,
@@ -324,7 +322,8 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
         IState_Envelope IEP(this->pelec);
         if (PARAM.globalv.gamma_only_local)
         {
-            IEP.begin(this->psi,
+            IEP.begin(ucell,
+                      this->psi,
                       this->pw_rhod,
                       this->pw_wfc,
                       this->pw_big,
@@ -344,7 +343,8 @@ void ESolver_KS_LCAO<TK, TR>::others(UnitCell& ucell, const int istep)
         }
         else
         {
-            IEP.begin(this->psi,
+            IEP.begin(ucell,
+                      this->psi,
                       this->pw_rhod,
                       this->pw_wfc,
                       this->pw_big,

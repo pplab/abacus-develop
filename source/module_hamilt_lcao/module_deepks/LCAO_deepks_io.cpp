@@ -28,28 +28,11 @@
 #include "LCAO_deepks_io.h"
 #include "npy.hpp"
 
-void LCAO_deepks_io::print_dm(const std::vector<double> &dm, 
-                              const int nlocal, 
-                              const int nrow)
-{
-    std::ofstream ofs("dm");
-    ofs << std::setprecision(15);
-
-    for (int mu=0; mu<nlocal; mu++)
-    {
-        for (int nu=0; nu<nlocal; nu++)
-        {
-            ofs << dm[mu * nrow + nu] << " ";
-        }
-        ofs << std::endl;
-    }
-}
-
-
-void LCAO_deepks_io::print_dm_k(const int nks, 
+template <typename TK>
+void LCAO_deepks_io::print_dm(const int nks, 
                                 const int nlocal,
                                 const int nrow,
-                                const std::vector<std::vector<std::complex<double>>>& dm)
+                                const std::vector<std::vector<TK>>& dm)
 {
     std::stringstream ss;
     for(int ik=0;ik<nks;ik++)
@@ -410,11 +393,11 @@ void LCAO_deepks_io::save_npy_orbital_precalc(const int nat,
     return;
 }
 
-
-//just for gamma only
-void LCAO_deepks_io::save_npy_h(const ModuleBase::matrix &hamilt,
+template <typename TK, typename TH>
+void LCAO_deepks_io::save_npy_h(const std::vector<TH> &hamilt,
                                 const std::string &h_file,
                                 const int nlocal,
+                                const int nks,
                                 const int rank)
 {
     ModuleBase::TITLE("LCAO_deepks_io", "save_npy_h");
@@ -422,20 +405,19 @@ void LCAO_deepks_io::save_npy_h(const ModuleBase::matrix &hamilt,
 	{
 		return;
 	}
-    int nks=1;
 
     const long unsigned hshape[] = {static_cast<unsigned long>(nks),
                                     static_cast<unsigned long>(nlocal), 
                                     static_cast<unsigned long>(nlocal) };
 
-    std::vector<double> npy_h;
+    std::vector<TK> npy_h;
     for(int k=0; k<nks; k++)
     {
         for (int i=0; i<nlocal; i++)
         {
             for (int j=0; j<nlocal; j++)
             {
-                npy_h.push_back(hamilt(i,j));
+                npy_h.push_back(hamilt[k](i,j));
             }
         }         
     }
@@ -444,7 +426,7 @@ void LCAO_deepks_io::save_npy_h(const ModuleBase::matrix &hamilt,
     return;    
 }
 
-
+template <typename TK>
 void LCAO_deepks_io::save_npy_v_delta_precalc(const int nat, 
                                               const int nks,
                                               const int nlocal, 
@@ -469,8 +451,7 @@ void LCAO_deepks_io::save_npy_v_delta_precalc(const int nat,
                                     static_cast<unsigned long>(nat),
                                     static_cast<unsigned long>(des_per_atom)};
 
-    std::vector<double> npy_v_delta_precalc;
-
+    std::vector<TK> npy_v_delta_precalc;    
     for (int iks = 0; iks < nks; ++iks)
     {
         for (int mu = 0; mu < nlocal; ++mu)
@@ -481,7 +462,16 @@ void LCAO_deepks_io::save_npy_v_delta_precalc(const int nat,
                 {
                     for(int p=0; p<des_per_atom; ++p)
                     {
-                        npy_v_delta_precalc.push_back(v_delta_precalc_tensor.index({iks, mu, nu, iat, p }).item().toDouble());
+                        if constexpr (std::is_same<TK, double>::value)
+                        {
+                            npy_v_delta_precalc.push_back(v_delta_precalc_tensor.index({iks, mu, nu, iat, p }).item().toDouble());
+                        }
+                        else
+                        {
+                            std::complex<double> value(torch::real(v_delta_precalc_tensor.index({iks, mu, nu, iat, p})).item<double>(),
+                                                        torch::imag(v_delta_precalc_tensor.index({iks, mu, nu, iat, p})).item<double>());
+                            npy_v_delta_precalc.push_back(value);
+                        }
                     }
                 }                
             }
@@ -492,7 +482,7 @@ void LCAO_deepks_io::save_npy_v_delta_precalc(const int nat,
     return;
 }
 
-
+template <typename TK>
 void LCAO_deepks_io::save_npy_psialpha(const int nat, 
                                        const int nks,
                                        const int nlocal,
@@ -517,7 +507,7 @@ void LCAO_deepks_io::save_npy_psialpha(const int nat,
                                     static_cast<unsigned long>(nks),
                                     static_cast<unsigned long>(nlocal),
                                     static_cast<unsigned long>(mmax)};
-    std::vector<double> npy_psialpha;
+    std::vector<TK> npy_psialpha;
     for(int iat=0; iat< nat ; iat++) 
     {
         for(int nl = 0; nl < nlmax; nl++)
@@ -528,7 +518,16 @@ void LCAO_deepks_io::save_npy_psialpha(const int nat,
                 {
                     for(int m=0; m< mmax; m++)
                     {
-                        npy_psialpha.push_back(psialpha_tensor.index({ iat,nl, iks, mu, m }).item().toDouble());
+                        if constexpr (std::is_same<TK, double>::value)
+                        {
+                            npy_psialpha.push_back(psialpha_tensor.index({ iat,nl, iks, mu, m }).item().toDouble());
+                        }
+                        else
+                        {
+                            std::complex<double> value(torch::real(psialpha_tensor.index({ iat, nl, iks, mu, m })).item<double>(), 
+                                                       torch::imag(psialpha_tensor.index({ iat, nl, iks, mu, m })).item<double>());
+                            npy_psialpha.push_back(value);
+                        }
                     }
                 }                
             }
@@ -585,5 +584,62 @@ void LCAO_deepks_io::save_npy_gevdm(const int nat,
     npy::SaveArrayAsNumpy(file_gevdm, false, 5, gshape, npy_gevdm);
     return;
 }
+
+
+template void LCAO_deepks_io::print_dm<double>(const int nks, 
+                                               const int nlocal,
+                                               const int nrow,
+                                               const std::vector<std::vector<double>>& dm);
+
+template void LCAO_deepks_io::print_dm<std::complex<double>>(const int nks, 
+                                                             const int nlocal,
+                                                             const int nrow,
+                                                             const std::vector<std::vector<std::complex<double>>>& dm);
+
+template void LCAO_deepks_io::save_npy_h<double>(const std::vector<ModuleBase::matrix> &hamilt,
+                                                 const std::string &h_file,
+                                                 const int nlocal,
+                                                 const int nks,
+                                                 const int rank);
+
+template void LCAO_deepks_io::save_npy_h<std::complex<double>>(const std::vector<ModuleBase::ComplexMatrix> &hamilt,
+                                                               const std::string &h_file,
+                                                               const int nlocal,
+                                                               const int nks,
+                                                               const int rank);
+
+template void LCAO_deepks_io::save_npy_v_delta_precalc<double>(const int nat, 
+                                                               const int nks,
+                                                               const int nlocal, 
+                                                               const int des_per_atom,
+                                                               const torch::Tensor& v_delta_precalc_tensor,
+                                                               const std::string& out_dir,
+                                                               const int rank);
+
+template void LCAO_deepks_io::save_npy_v_delta_precalc<std::complex<double>>(const int nat, 
+                                                                             const int nks,
+                                                                             const int nlocal, 
+                                                                             const int des_per_atom,
+                                                                             const torch::Tensor& v_delta_precalc_tensor,
+                                                                             const std::string& out_dir,
+                                                                             const int rank);
+
+template void LCAO_deepks_io::save_npy_psialpha<double>(const int nat,
+                                                        const int nks,
+                                                        const int nlocal,
+                                                        const int inlmax,
+                                                        const int lmaxd,
+                                                        const torch::Tensor &psialpha_tensor,
+                                                        const std::string& out_dir,
+                                                        const int rank);
+
+template void LCAO_deepks_io::save_npy_psialpha<std::complex<double>>(const int nat,
+                                                                      const int nks,
+                                                                      const int nlocal,
+                                                                      const int inlmax,
+                                                                      const int lmaxd,
+                                                                      const torch::Tensor &psialpha_tensor,
+                                                                      const std::string& out_dir,
+                                                                      const int rank);
 
 #endif

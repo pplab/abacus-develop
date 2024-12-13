@@ -1,6 +1,6 @@
 #pragma once
 #include "module_elecstate/elecstate.h"
-#include "module_hamilt_pw/hamilt_pwdft/wavefunc.h"
+#include "module_psi/wavefunc.h"
 
 namespace elecstate
 {
@@ -44,6 +44,7 @@ void ElecState::print_eigenvalue(std::ofstream& ofs)
 
 void ElecState::init_scf(const int istep,
                          const ModuleBase::ComplexMatrix& strucfac,
+                         const bool*,
                          ModuleSymmetry::Symmetry&,
                          const void*)
 {

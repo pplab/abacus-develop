@@ -2,6 +2,7 @@
 
 #include "module_base/global_variable.h"
 #include "module_elecstate/module_charge/symmetry_rho.h"
+#include "module_elecstate/read_pseudo.h"
 #include "module_hamilt_pw/hamilt_pwdft/global.h"
 #include "module_io/cif_io.h"
 #include "module_io/cube_io.h"
@@ -59,7 +60,7 @@ void ESolver_FP::before_all_runners(UnitCell& ucell, const Input_para& inp)
     //! 1) read pseudopotentials
     if (!PARAM.inp.use_paw)
     {
-        ucell.read_pseudo(GlobalV::ofs_running);
+        elecstate::read_pseudo(GlobalV::ofs_running, ucell);
     }
 
     //! 2) initialie the plane wave basis for rho
@@ -128,6 +129,8 @@ void ESolver_FP::before_all_runners(UnitCell& ucell, const Input_para& inp)
 //! Something to do after SCF iterations when SCF is converged or comes to the max iter step.
 void ESolver_FP::after_scf(UnitCell& ucell, const int istep)
 {
+    ModuleBase::TITLE("ESolver_FP", "after_scf");
+
     // 0) output convergence information
     ModuleIO::output_convergence_after_scf(this->conv_esolver, this->pelec->f_en.etot);
 
@@ -281,7 +284,7 @@ void ESolver_FP::before_scf(UnitCell& ucell, const int istep)
             this->pw_rhod->collect_uniqgg();
         }
 
-        GlobalC::ppcell.init_vloc(GlobalC::ppcell.vloc, pw_rhod);
+        this->p_locpp->init_vloc(ucell,this->pw_rhod);
         ModuleBase::GlobalFunc::DONE(GlobalV::ofs_running, "LOCAL POTENTIAL");
 
         this->pelec->omega = ucell.omega;

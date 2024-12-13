@@ -15,6 +15,8 @@
 #include "module_hamilt_general/module_xc/xc_functional.h"
 #ifdef __CUDA
 #include "cublas_v2.h"
+#include "cufft.h"
+
 static const char* _cublasGetErrorString(cublasStatus_t error)
 {
     switch (error)
@@ -256,7 +258,6 @@ namespace GlobalC
 #ifdef __EXX
     extern Exx_Info exx_info;
 #endif
-extern pseudopot_cell_vnl ppcell;
 } // namespace GlobalC
 
 #include "module_cell/parallel_kpoints.h"

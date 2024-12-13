@@ -3,7 +3,8 @@
 #include "module_parameter/input_parameter.h"
 #include "module_cell/unitcell.h"
 #include "module_hamilt_general/hamilt.h"
-#include "module_hsolver/hsolver.h"
+#include "module_elecstate/elecstate.h"
+#include "module_hamilt_general/hamilt.h"
 #include "module_elecstate/elecstate_lcao.h"
 
 #include <vector>   //future tensor
@@ -48,6 +49,7 @@ namespace LR
       protected:
         const Input_para& input;
         const UnitCell& ucell;
+        Grid_Driver gd;
         std::vector<double> orb_cutoff_;
 
         // not to use ElecState because 2-particle state is quite different from 1-particle state.

@@ -4,6 +4,8 @@
 #include "module_parameter/parameter.h"
 #undef private
 #include "module_cell/unitcell.h"
+#include "module_elecstate/cal_ux.h"
+#include "module_elecstate/read_pseudo.h"
 
 #include "memory"
 #include "module_base/global_variable.h"
@@ -97,7 +99,7 @@ Magnetism::~Magnetism()
  *   - UpdateVel
  *     - update_vel(const ModuleBase::Vector3<double>* vel_in)
  *   - CalUx
- *     - cal_ux(): calculate magnetic moments of cell
+ *     - cal_ux(UnitCell& ucell): calculate magnetic moments of cell
  *   - ReadOrbFile
  *     - read_orb_file(): read header part of orbital file
  *   - ReadOrbFileWarning
@@ -271,7 +273,7 @@ TEST_F(UcellDeathTest, SetupWarningQuit1)
     std::string fixed_axes_in = "volume";
     testing::internal::CaptureStdout();
     EXPECT_EXIT(ucell->setup(latname_in, ntype_in, lmaxmax_in, init_vel_in, fixed_axes_in),
-                ::testing::ExitedWithCode(0),
+                ::testing::ExitedWithCode(1),
                 "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,
@@ -289,7 +291,7 @@ TEST_F(UcellDeathTest, SetupWarningQuit2)
     std::string fixed_axes_in = "shape";
     testing::internal::CaptureStdout();
     EXPECT_EXIT(ucell->setup(latname_in, ntype_in, lmaxmax_in, init_vel_in, fixed_axes_in),
-                ::testing::ExitedWithCode(0),
+                ::testing::ExitedWithCode(1),
                 "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("set relax_new to be 1 for fixed_shape relaxation"));
@@ -310,7 +312,7 @@ TEST_F(UcellDeathTest, CompareAatomLabel)
     std::string atom_label_in_orbtial = "atom label in orbital file ";
     std::string mismatch_with_pseudo = " mismatch with pseudo file of ";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->compare_atom_labels(stru_label[0], pseudo_label[0]), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(ucell->compare_atom_labels(stru_label[0], pseudo_label[0]), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,
                 testing::HasSubstr(atom_label_in_orbtial + stru_label[0] + mismatch_with_pseudo + pseudo_label[0]));
@@ -589,7 +591,7 @@ TEST_F(UcellDeathTest, RemakeCellWarnings)
         ucell->latvec.e33 = 10.0;
         ucell->latName = latname_in[i];
         testing::internal::CaptureStdout();
-        EXPECT_EXIT(ucell->remake_cell(), ::testing::ExitedWithCode(0), "");
+        EXPECT_EXIT(ucell->remake_cell(), ::testing::ExitedWithCode(1), "");
         std::string output = testing::internal::GetCapturedStdout();
         if (latname_in[i] == "none")
         {
@@ -610,7 +612,7 @@ TEST_F(UcellTest, JudgeParallel)
 {
     ModuleBase::Vector3<double> b(1.0, 1.0, 1.0);
     double a[3] = {1.0, 1.0, 1.0};
-    EXPECT_TRUE(ucell->judge_parallel(a, b));
+    EXPECT_TRUE(elecstate::judge_parallel(a, b));
 }
 
 TEST_F(UcellTest, Index)
@@ -781,7 +783,7 @@ TEST_F(UcellDeathTest, PeriodicBoundaryAdjustment1)
     PARAM.input.relax_new = utp.relax_new;
     ucell = utp.SetUcellInfo();
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->periodic_boundary_adjustment(), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(ucell->periodic_boundary_adjustment(), ::testing::ExitedWithCode(1), "");
     std::string output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("the movement of atom is larger than the length of cell"));
 }
@@ -821,7 +823,7 @@ TEST_F(UcellTest, PrintUnitcellPseudo)
     ucell = utp.SetUcellInfo();
     PARAM.input.test_pseudo_cell = 1;
     std::string fn = "printcell.log";
-    ucell->print_unitcell_pseudo(fn);
+    elecstate::print_unitcell_pseudo(fn, *ucell);
     std::ifstream ifs;
     ifs.open("printcell.log");
     std::string str((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
@@ -1034,7 +1036,8 @@ TEST_F(UcellTest, CalUx1)
     ucell->atoms[0].m_loc_[0].set(0, -1, 0);
     ucell->atoms[1].m_loc_[0].set(1, 1, 1);
     ucell->atoms[1].m_loc_[1].set(0, 0, 0);
-    ucell->cal_ux();
+    PARAM.input.nspin = 4;
+    elecstate::cal_ux(*ucell);
     EXPECT_FALSE(ucell->magnet.lsign_);
     EXPECT_DOUBLE_EQ(ucell->magnet.ux_[0], 0);
     EXPECT_DOUBLE_EQ(ucell->magnet.ux_[1], -1);
@@ -1050,7 +1053,8 @@ TEST_F(UcellTest, CalUx2)
     ucell->atoms[1].m_loc_[0].set(1, 1, 1);
     ucell->atoms[1].m_loc_[1].set(0, 0, 0);
     //(0,0,0) is also parallel to (1,1,1)
-    ucell->cal_ux();
+    PARAM.input.nspin = 4;
+    elecstate::cal_ux(*ucell);
     EXPECT_TRUE(ucell->magnet.lsign_);
     EXPECT_NEAR(ucell->magnet.ux_[0], 0.57735, 1e-5);
     EXPECT_NEAR(ucell->magnet.ux_[1], 0.57735, 1e-5);
@@ -1081,7 +1085,7 @@ TEST_F(UcellDeathTest, ReadOrbFileWarning)
     std::ofstream ofs_running;
     ofs_running.open("tmp_readorbfile");
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_orb_file(0, orb_file, ofs_running, &(ucell->atoms[0])), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(ucell->read_orb_file(0, orb_file, ofs_running, &(ucell->atoms[0])), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("ABACUS Cannot find the ORBITAL file"));
     ofs_running.close();
@@ -1119,7 +1123,7 @@ TEST_F(UcellDeathTest, ReadAtomSpeciesWarning1)
     ucell->atoms = new Atom[ucell->ntype];
     ucell->set_atom_flag = true;
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("unrecongnized pseudo type."));
     ofs_running.close();
@@ -1137,7 +1141,7 @@ TEST_F(UcellDeathTest, ReadAtomSpeciesWarning2)
     ucell->atoms = new Atom[ucell->ntype];
     ucell->set_atom_flag = true;
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("lat0<=0.0"));
     ofs_running.close();
@@ -1155,7 +1159,7 @@ TEST_F(UcellDeathTest, ReadAtomSpeciesWarning3)
     ucell->atoms = new Atom[ucell->ntype];
     ucell->set_atom_flag = true;
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,
                 testing::HasSubstr("do not use LATTICE_PARAMETERS without explicit specification of lattice type"));
@@ -1175,7 +1179,7 @@ TEST_F(UcellDeathTest, ReadAtomSpeciesWarning4)
     ucell->set_atom_flag = true;
     ucell->latName = "bcc";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output,
                 testing::HasSubstr("do not use LATTICE_VECTORS along with explicit specification of lattice type"));
@@ -1234,7 +1238,7 @@ TEST_F(UcellDeathTest, ReadAtomSpeciesWarning5)
     ucell->set_atom_flag = true;
     ucell->latName = "arbitrary";
     testing::internal::CaptureStdout();
-    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(0), "");
+    EXPECT_EXIT(ucell->read_atom_species(ifa, ofs_running), ::testing::ExitedWithCode(1), "");
     output = testing::internal::GetCapturedStdout();
     EXPECT_THAT(output, testing::HasSubstr("latname not supported"));
     ofs_running.close();

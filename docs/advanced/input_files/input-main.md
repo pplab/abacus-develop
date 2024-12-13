@@ -435,6 +435,9 @@
     - [abs\_broadening](#abs_broadening)
     - [ri\_hartree\_benchmark](#ri_hartree_benchmark)
     - [aims\_nbasis](#aims_nbasis)
+  - [Reduced Density Matrix Functional Theory](#Reduced-Density-Matrix-Functional-Theory)
+    - [rdmft](#rdmft)
+    - [rdmft\_power\_alpha](#rdmft_power_alpha)
 
 [back to top](#full-list-of-input-keywords)
 ## System variables
@@ -1232,6 +1235,12 @@ Note: In new angle mixing, you should set `mixing_beta_mag >> mixing_beta`. The 
 - **Description**: To determine the number of old iterations' `drho` used in slope calculations.
 - **Default**: `mixing_ndim`
 
+### sc_os_ndim
+
+- **Type**: int
+- **Description**: To determine the number of old iterations to judge oscillation, it occured,  more accurate lambda with DeltaSpin method would be calculated, only for PW base.
+- **Default**: 5
+
 ### chg_extrap
 
 - **Type**: String
@@ -1389,7 +1398,7 @@ These variables are used to control the geometry relaxation.
 ### relax_nmax
 
 - **Type**: Integer
-- **Description**: The maximal number of ionic iteration steps, the minimum value is 1.
+- **Description**: The maximal number of ionic iteration steps. If set to 0, the code performs a quick "dry run", stopping just after initialization. This is useful to check for input correctness and to have the summary printed.
 - **Default**: 1 for SCF, 50 for relax and cell-relax calcualtions
 
 ### relax_cg_thr
@@ -1717,7 +1726,7 @@ These variables are used to control the output of properties.
 
 - **Type**: Boolean
 - **Availability**: Numerical atomic orbital basis (not gamma-only algorithm)
-- **Description**: Whether to print the matrix representation of the position matrix (in Bohr) into a file named `data-rR-tr` in the directory `OUT.${suffix}`. For more information, please refer to [position_matrix.md](../elec_properties/position_matrix.md#extracting-position-matrices).
+- **Description**: Whether to print the matrix representation of the position matrix (in Bohr) into a file named `data-rR-tr` in the directory `OUT.${suffix}`. If [calculation](#calculation) is set to `get_S`, the position matrix can be obtained without scf iterations. For more information, please refer to [position_matrix.md](../elec_properties/position_matrix.md#extracting-position-matrices).
 - **Default**: False
 
 ### out_mat_hs2
@@ -4030,5 +4039,22 @@ The output files are `OUT.${suffix}/Excitation_Energy.dat` and `OUT.${suffix}/Ex
 - **Availability**: `ri_hartree_benchmark` = `aims`
 - **Description**: Atomic basis set size for each atom type (with the same order as in `STRU`) in FHI-aims.
 - **Default**: {} (empty list, where ABACUS use its own basis set size)
+
+## Reduced Density Matrix Functional Theory
+
+ab-initio methods and the xc-functional parameters used in RDMFT.
+The physical quantities that RDMFT temporarily expects to output are the kinetic energy, total energy, and 1-RDM of the system in the ground state, etc.
+
+### rdmft
+
+- **Type**: Boolean
+- **Description**: Whether to perform rdmft calculation (reduced density matrix funcional theory)
+- **Default**: false
+
+### rdmft_power_alpha
+
+- **Type**: Real
+- **Description**: The alpha parameter of power-functional(or other exx-type/hybrid functionals) which used in RDMFT, g(occ_number) = occ_number^alpha
+- **Default**: 0.656
 
 [back to top](#full-list-of-input-keywords)
