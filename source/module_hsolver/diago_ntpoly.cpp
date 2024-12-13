@@ -51,6 +51,7 @@ void DiagoNTPoly<double>::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>&
     matd h_mat, s_mat;
     phm_in->matrix(h_mat, s_mat);
     int ik = psi.get_current_k();
+    ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter DiagoNTPoly<double>::diag, ik", ik);
     const int nelec=PARAM.inp.nelec;
     const int nspin = PARAM.inp.nspin==2 ? 2:1;
     const double converge_density = 1e-10;
@@ -62,6 +63,7 @@ void DiagoNTPoly<double>::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>&
                       nelec, nspin, h_mat.p, s_mat.p,
                       DM[ik], EDM[ik],
                       this->energy, this->chemical_potential);
+    ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "solved simple_ntpoly");
 }
 
 template <>

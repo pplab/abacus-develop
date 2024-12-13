@@ -49,7 +49,7 @@ void HSolverLCAO<T, Device>::solve(hamilt::Hamilt<T>* pHamilt,
     ModuleBase::TITLE("HSolverLCAO", "solve");
     ModuleBase::timer::tick("HSolverLCAO", "solve");
 
-    if (this->method != "pexsi")
+    if (this->method != "pexsi" && this->method != "ntpoly")
     {
         if (GlobalV::KPAR_LCAO > 1
             && (this->method == "genelpa" || this->method == "elpa" || this->method == "scalapack_gvx"))
@@ -121,18 +121,22 @@ void HSolverLCAO<T, Device>::solve(hamilt::Hamilt<T>* pHamilt,
     {
 #ifdef __NTPOLY // other purification methods should follow this routine
         DiagoNTPoly<T> pe(ParaV);
+        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "DiagNTPoly solver pe inited");
         for (int ik = 0; ik < psi.get_nk(); ++ik)
         {
             /// update H(k) for each k point
             pHamilt->updateHk(ik);
             psi.fix_k(ik);
+            ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "H(k) updated, ik", ik);
             // solve eigenvector and eigenvalue for H(k)
             pe.diag(pHamilt, psi, nullptr);
+            ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "solved pe, ik", ik);
         }
         auto _pes = dynamic_cast<elecstate::ElecStateLCAO<T>*>(pes);
         pes->f_en.eband = pe.energy;
         // maybe eferm could be dealt with in the future
         _pes->dmToRho(pe.DM, pe.EDM);
+        ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "solved pe.DM and pe.EDM");
 #endif
     }
     ModuleBase::timer::tick("HSolverLCAO", "solve");
