@@ -1,6 +1,7 @@
 #ifdef __NTPOLY
 #include <iostream>
 #include <vector>
+#include <string>
 #include <ProcessGrid.h>
 #include <PSMatrix.h>
 #include <TripletList.h>
@@ -12,6 +13,7 @@
 #include "Cblacs.h"
 #include "simple_ntpoly.h"
 #include "module_base/global_function.h"
+#include "utils.hpp"
 
 namespace ntpoly
 {
@@ -42,7 +44,13 @@ namespace ntpoly
         double& energy, double& chemical_potential)
     {
         const int nFull=desc[2];
-        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter simple_ntpoly, nFull", nFull);
+        if(for_debug) 
+        {
+            ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter simple_ntpoly, nFull", nFull);
+            // int saveBCDMatrixToFile(const MPI_Comm comm, const int* desc, const int nrow, const int ncol, double* matrix, const std::string& filename)
+            saveBCDMatrixToFile(comm_2D, desc, nrow, ncol, H, "H.dat");
+            saveBCDMatrixToFile(comm_2D, desc, nrow, ncol, S, "S.dat");
+        }
         // init default process grid
         int process_slice=1;
         NTPoly::ConstructGlobalProcessGrid(comm_2D, process_slice);
@@ -95,6 +103,7 @@ namespace ntpoly
         NTPoly::DensityMatrixSolvers::TRS2(Hamiltonian, ISQOverlap, trace, 
                         Density, energy, chemical_potential, solver_parameters);
         Density.Scale(spin_degeneracy);
+        energy *= spin_degeneracy;
         
         if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Density Matrix is done");
         // convert DM from the PSMatrix to a BCD matrix
@@ -138,8 +147,16 @@ namespace ntpoly
         {
             readTripletListFromBCD(tripletList, comm_2D, desc, nrow, ncol, M, threshold);
         }
-        if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+        if(for_debug) 
+        {
+            ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
             "the BCD Matrix is converted to tripletList, non-zero elements are:", tripletList.GetSize());
+            // std::string local_tripletList_filename="local_tripletList.txt";
+            int myid;
+            MPI_Comm_rank(comm_2D, &myid);
+            std::string local_tripletList_filename="local_tripletList_"+std::to_string(myid)+".txt";
+            saveTripletListToFile(tripletList, local_tripletList_filename);
+        }
         // fill PSMatrix from tripletlist
         PSM.FillFromTripletList(tripletList);
         if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
@@ -173,13 +190,13 @@ namespace ntpoly
         NTPoly::Triplet_r tmp_t;
         for(int i=0; i<ncol; ++i)
         {
-            tmp_t.index_column=globalIndex(i, nblk, npcol, mypcol);
+            tmp_t.index_column=globalIndex(i, nblk, npcol, mypcol)+1;
             for(int j=0; j<nrow; ++j)
             {
                 const int idx=i*nrow+j;
                 const double val=M[idx];
                 if(std::abs(val)<threshold) continue;
-                tmp_t.index_row=globalIndex(j, nblk, nprow, myprow);
+                tmp_t.index_row=globalIndex(j, nblk, nprow, myprow)+1;
                 tmp_t.point_value=val;
                 tripletList.Append(tmp_t);
             }
@@ -225,8 +242,8 @@ namespace ntpoly
                 for(int k=0; k<tripletList.GetSize(); ++k)
                 {
                     const NTPoly::Triplet_r tmp_t=tripletList.GetTripletAt(k);
-                    const int gRow=tmp_t.index_row;
-                    const int gCol=tmp_t.index_column;
+                    const int gRow=tmp_t.index_row-1;
+                    const int gCol=tmp_t.index_column-1;
                     const int lRow=localIndex(gRow, nblk, nprow, myprow);
                     const int lCol=localIndex(gCol, nblk, npcol, mypcol);
                     const int idx=lRow+lCol*nrow;

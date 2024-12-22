@@ -54,9 +54,9 @@ void DiagoNTPoly<double>::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>&
     if(ntpoly::for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter DiagoNTPoly<double>::diag, ik", ik);
     const int nelec=PARAM.inp.nelec;
     const int nspin = PARAM.inp.nspin==2 ? 2:1;
-    const double converge_density = 1e-10;
-    const double converge_overlap = 1e-10;
-    const double threshold = 1e-10;
+    const double converge_density = 1e-6;
+    const double converge_overlap = 1e-6;
+    const double threshold = 1e-9;
     ntpoly::simple_ntpoly(MPI_COMM_WORLD, h_mat.desc,
                       h_mat.row, h_mat.col,
                       converge_density, converge_overlap, threshold, 
