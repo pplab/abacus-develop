@@ -53,7 +53,11 @@ namespace ntpoly
         }
         // init default process grid
         int process_slice=1;
-        NTPoly::ConstructGlobalProcessGrid(comm_2D, process_slice);
+        if(require_init_NTPOLY)
+        {
+            NTPoly::ConstructGlobalProcessGrid(comm_2D, process_slice);
+            require_init_NTPOLY=false;
+        }        
         if(for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "GlobalProcessGrid is constructed");
 
         // init PSMatrices of Hamiltonian, Overlap, ISQOverlap, Density and EnergyDensity

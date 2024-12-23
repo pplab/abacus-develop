@@ -7,6 +7,7 @@
 namespace ntpoly
 {
    const bool for_debug=true;
+   static bool require_init_NTPOLY=true;
 /**
  * Main function for performing NTPoly calculations.
  *
