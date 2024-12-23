@@ -198,7 +198,7 @@ void ESolver_SDFT_PW<T, Device>::hamilt2density_single(UnitCell& ucell, int iste
         {
             srho.begin(is, *(this->pelec->charge), this->pw_rho, ucell.symm);
         }
-        this->pelec->f_en.deband = this->pelec->cal_delta_eband();
+        this->pelec->f_en.deband = this->pelec->cal_delta_eband(ucell);
     }
     else
     {
@@ -233,6 +233,7 @@ void ESolver_SDFT_PW<T, Device>::cal_force(UnitCell& ucell, ModuleBase::matrix& 
                     &this->sf,
                     &this->kv,
                     this->pw_wfc,
+                    this->locpp,
                     this->ppcell,
                     ucell,
                     *this->kspw_psi,
@@ -253,6 +254,7 @@ void ESolver_SDFT_PW<T, Device>::cal_stress(UnitCell& ucell, ModuleBase::matrix&
                   *this->kspw_psi,
                   this->stowf,
                   this->pelec->charge,
+                  &this->locpp,
                   &this->ppcell,
                   ucell);
 }
