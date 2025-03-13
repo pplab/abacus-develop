@@ -129,6 +129,7 @@ namespace ntpoly
         NTPoly::DensityMatrixSolvers::TRS2(Hamiltonian, ISQOverlap, trace, 
                         Density, energy, chemical_potential, solver_parameters);
         Density.Scale(spin_degeneracy);
+		energy *= spin_degeneracy;
         
         if(for_debug) //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Density Matrix is done");
         {
