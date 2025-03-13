@@ -53,14 +53,14 @@ void DiagoNTPoly<double>::diag(hamilt::Hamilt<double>* phm_in, psi::Psi<double>&
     int ik = psi.get_current_k();
     if(ntpoly::for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter DiagoNTPoly<double>::diag, ik", ik);
     const int nelec=PARAM.inp.nelec;
-    const int nspin = PARAM.inp.nspin==2 ? 2:1;
-    const double converge_density = 1e-6;
-    const double converge_overlap = 1e-6;
-    const double threshold = 1e-9;
+    // const int nspin = PARAM.inp.nspin==2 ? 2:1;
+    const double converge_density = 1e-9;
+    const double converge_overlap = 1e-9;
+    const double threshold = 1e-12;
     ntpoly::simple_ntpoly(MPI_COMM_WORLD, h_mat.desc,
                       h_mat.row, h_mat.col,
                       converge_density, converge_overlap, threshold, 
-                      nelec, nspin, h_mat.p, s_mat.p,
+                      nelec, PARAM.inp.nspin, h_mat.p, s_mat.p,
                       DM[ik], EDM[ik],
                       this->energy, this->chemical_potential);
     if(ntpoly::for_debug) ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "solved simple_ntpoly");

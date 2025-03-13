@@ -1,7 +1,9 @@
 #pragma once
+#include <mpi.h>
 extern "C"
 {
     // Initialization
+    int Csys2blacs_handle(MPI_Comm SysCtxt);
     void Cblacs_pinfo(int *myid, int *nprocs);
     void Cblacs_get(int icontxt, int what, int *val);
     void Cblacs_gridinit(int* icontxt, char *layout, int nprow, int npcol);
