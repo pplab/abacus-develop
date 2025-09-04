@@ -44,6 +44,62 @@ static inline void outlog(const std::string& str, const T num)
     outfile.close();
 }
 
+static inline void saveArrayToFile(const std::string& file_prefix, const double* array, int size)
+{
+    int myid;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+    std::string filename = file_prefix + "_" + std::to_string(myid) + ".dat";
+    std::ofstream outfile(filename);
+    if (!outfile.is_open())
+    {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+        return;
+    }
+    for (int i = 0; i < size; ++i)
+    {
+        outfile << array[i] << std::endl;
+    }
+    outfile.close();    
+}
+
+static inline void saveArrayToFile(const std::string& file_prefix, const int* array, int size)
+{
+    int myid;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+    std::string filename = file_prefix + "_" + std::to_string(myid) + ".dat";
+    std::ofstream outfile(filename);
+    if (!outfile.is_open())
+    {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+    }
+    for (int i = 0; i < size; ++i)
+    {
+        outfile << array[i] << std::endl;
+    }
+    outfile.close();
+}
+
+static inline void saveMatrixToFile(const std::string& file_prefix, const double* matrix, int rows, int cols)
+{
+    int myid;
+    MPI_Comm_rank(MPI_COMM_WORLD, &myid);
+    std::string filename = file_prefix + "_" + std::to_string(myid) + ".dat";
+    std::ofstream outfile(filename);
+    if (!outfile.is_open())
+    {
+        std::cerr << "Error: Could not open file " << filename << std::endl;
+        return;
+    }
+    for (int i = 0; i < rows; ++i)
+    {
+        for (int j = 0; j < cols; ++j)
+        {
+            outfile << matrix[i * cols + j] << " ";
+        }
+    }
+    outfile.close();
+}
+
 // Function to initialize the BLACS grid
 void initBlacsGrid(MPI_Comm comm, int nFull, int nblk,
                    int& blacs_ctxt, int& narows, int& nacols, int* desc);
@@ -62,7 +118,7 @@ int loadParametersFromFile(const std::string& filename,
 int saveTripletListToFile(const NTPoly::TripletList_r& tripletList, const std::string& filename);
 
 // Function to save a local matrix to a file
-int saveLocalMatrixToFile(const int N, double* matrix, const std::string& filename);
+int saveLocalMatrixToFile(const int narows, const int nacols, double* matrix, const std::string& filename);
 
 // Function to save a Block Cyclic Distributed (BCD) matrix to a file
 int saveBCDMatrixToFile(const MPI_Comm comm, const int* desc, const int nrow, const int ncol, const double* matrix, const std::string& filename);

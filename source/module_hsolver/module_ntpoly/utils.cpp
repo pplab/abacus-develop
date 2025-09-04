@@ -12,12 +12,27 @@ extern "C"
     #include "scalapack.h" 
 }
 
-
+/**
+ * @brief Initializes a BLACS grid and computes the number of local rows and columns for a matrix.
+ * 
+ * This function initializes a BLACS grid based on the given MPI communicator and parameters.
+ * It calculates the number of process rows and columns in the grid, initializes the BLACS context,
+ * and computes the number of local rows and columns for a matrix distributed in a block - cyclic fashion.
+ * Finally, it initializes the matrix descriptor array.
+ * 
+ * @param comm The MPI communicator used for communication between processes.
+ * @param nFull The total number of rows or columns in the global matrix.
+ * @param nblk The block size used for block - cyclic distribution.
+ * @param blacs_ctxt A reference to an integer where the BLACS context handle will be stored.
+ * @param narows A reference to an integer where the number of local rows will be stored.
+ * @param nacols A reference to an integer where the number of local columns will be stored.
+ * @param desc A pointer to an array of integers used to store the matrix descriptor.
+ */
 void initBlacsGrid(MPI_Comm comm, int nFull, int nblk,
                    int& blacs_ctxt, int& narows, int& nacols, int* desc)
 {
     char BLACS_LAYOUT='C';
-    int ISRCPROC=0; // fortran array starts from 1
+    int ISRCPROC=0; 
     int nprows, npcols;
     int myprow, mypcol;
     int nprocs, myid;
@@ -43,10 +58,50 @@ void initBlacsGrid(MPI_Comm comm, int nFull, int nblk,
     nacols=numroc_(&nFull, &nblk, &mypcol, &ISRCPROC, &npcols);
     outlog("nacols", nacols);
     descinit_(desc, &nFull, &nFull, &nblk, &nblk, &ISRCPROC, &ISRCPROC, &blacs_ctxt, &narows, &info);
+    if(true)
+    {
+        outlog("BLACS context initialized", blacs_ctxt);
+        outlog("Descriptor initialized with nFull " +std::to_string(nFull) + 
+                                          ", nblk " + std::to_string(nblk) + 
+                                          ", narows " + std::to_string(narows) + 
+                                          ", blacs_ctxt " + std::to_string(blacs_ctxt));
+        outlog("The desc array is: ");
+        for(int i=0; i<9; ++i)
+        {
+            outlog(std::to_string(desc[i]));
+        }
+        outlog("Check process grid layout by pnum:");
+        for(int i=0; i<nprows; ++i)
+        {
+            for(int j=0; j<npcols; ++j)
+            {
+                int rank=Cblacs_pnum(blacs_ctxt, i, j);
+                outlog("process at row " + std::to_string(i) + 
+                        ", column " + std::to_string(j) + 
+                        " has global rank " + std::to_string(rank));
+            }
+        }
+        outlog("Check process grid layout by pcoord:");
+        for(int i=0; i<nprocs; ++i)
+        {
+            int prow, pcol;
+            Cblacs_pcoord(blacs_ctxt, i, &prow, &pcol);
+            outlog("process with global rank " + std::to_string(i) + 
+                   " is at row " + std::to_string(prow) + 
+                   ", column " + std::to_string(pcol));
+        }
+        outlog("Check current process rank and grid info:");
+        outlog("My process rank is " + std::to_string(myid));
+        outlog("My process row is " + std::to_string(myprow) + 
+               ", my process column is " + std::to_string(mypcol));
+    }
 }
 
 /**
- * Saves the parameters to a file.
+ * @brief Saves the specified parameters to a file.
+ * 
+ * This function writes various parameters related to matrix calculations and simulations to a file.
+ * Each parameter is written on a separate line with a descriptive key, making the file human - readable.
  * 
  * @param filename The name of the file to which the parameters will be saved.
  * @param nFull The total number of rows or columns in the matrix.
@@ -55,7 +110,7 @@ void initBlacsGrid(MPI_Comm comm, int nFull, int nblk,
  * @param converge_density The density convergence threshold.
  * @param converge_overlap The overlap convergence threshold.
  * @param threshold The threshold for other calculations.
- * @return Returns 0 if successful, or an error code if an error occurs.
+ * @return Returns 0 if the file is successfully opened and written to; otherwise, returns 1.
  */
 int saveParametersToFile(const std::string& filename, 
         const int nFull, const int nelec, const int nspin, 
@@ -77,6 +132,22 @@ int saveParametersToFile(const std::string& filename,
     return 0;
 }
 
+/**
+ * @brief Loads parameters from a file into the provided variables.
+ * 
+ * This function reads a file containing parameters related to matrix calculations and simulations.
+ * It parses each line of the file, extracts the parameter values based on their descriptive keys,
+ * and stores these values in the provided variables.
+ * 
+ * @param filename The name of the file from which the parameters will be loaded.
+ * @param nFull A reference to an integer where the total number of rows or columns in the matrix will be stored.
+ * @param nelec A reference to an integer where the number of electrons will be stored.
+ * @param nspin A reference to an integer where the number of spins will be stored.
+ * @param converge_density A reference to a double where the density convergence threshold will be stored.
+ * @param converge_overlap A reference to a double where the overlap convergence threshold will be stored.
+ * @param threshold A reference to a double where the threshold for other calculations will be stored.
+ * @return Returns 0 if the file is successfully opened and parsed; otherwise, returns 1.
+ */
 int loadParametersFromFile(const std::string& filename,
         int& nFull, int& nelec, int& nspin, 
         double& converge_density, double& converge_overlap, double& threshold)
@@ -125,11 +196,15 @@ int loadParametersFromFile(const std::string& filename,
 }
 
 /**
- * Saves a TripletList to a file.
+ * @brief Saves a TripletList to a file.
  * 
- * @param tripletList The TripletList to be saved.
+ * This function writes each triplet in the provided TripletList to a specified file.
+ * Each line in the file corresponds to a triplet, containing the row index, column index,
+ * and the value of the triplet, separated by spaces.
+ * 
+ * @param tripletList A constant reference to the TripletList object to be saved.
  * @param filename The name of the file to which the TripletList will be saved.
- * @return Returns 0 if successful, or an error code if an error occurs.
+ * @return Returns 0 if the file is successfully opened and written to; otherwise, returns 1.
  */
 int saveTripletListToFile(const NTPoly::TripletList_r& tripletList, const std::string& filename)
 {
@@ -150,14 +225,18 @@ int saveTripletListToFile(const NTPoly::TripletList_r& tripletList, const std::s
 }
 
 /**
- * Saves a local matrix (column major) to a file.
+ * @brief Saves a local matrix (column major!) to a file.
  * 
- * @param N The dimension of the matrix.
- * @param matrix The local matrix to be saved.
+ * This function writes a local column-major matrix to a specified file. Each row of the matrix
+ * is written on a separate line, with elements separated by spaces.
+ * 
+ * @param narows The number of rows in the matrix.
+ * @param nacols The number of columns in the matrix.
+ * @param matrix A pointer to the local matrix data stored in column-major order.
  * @param filename The name of the file to which the matrix will be saved.
- * @return Returns 0 if successful, or an error code if an error occurs.
+ * @return Returns 0 if the file is successfully opened and written to; otherwise, returns 1.
  */
-int saveLocalMatrixToFile(const int N, double* matrix, const std::string& filename)
+int saveLocalMatrixToFile(const int narows, const int nacols, double* matrix, const std::string& filename)
 {
     std::ofstream outfile(filename);
     if (!outfile.is_open())
@@ -165,11 +244,11 @@ int saveLocalMatrixToFile(const int N, double* matrix, const std::string& filena
         std::cerr << "Error: Could not open file " << filename << std::endl;
         return 1;
     }
-    for (int i=0; i<N; ++i) // i is the row index, j is the column index
+    for (int i=0; i<narows; ++i) // i is the row index, j is the column index
     {
-        for (int j=0; j<N; ++j)
+        for (int j=0; j<nacols; ++j)
         {
-            outfile << matrix[i+j*N] << " "; // attention: this is a column major matrix
+            outfile << matrix[i+j*narows] << " "; // attention: this is a column major matrix
         }
         outfile << std::endl;
     }
@@ -178,15 +257,19 @@ int saveLocalMatrixToFile(const int N, double* matrix, const std::string& filena
 }
 
 /**
- * Saves a Block Cyclic Distributed (BCD) matrix to a file.
+ * @brief Saves a Block Cyclic Distributed (BCD) matrix to a file.
  * 
- * @param comm The MPI communicator.
- * @param desc The descriptor array for the BCD matrix.
+ * This function gathers a Block Cyclic Distributed (BCD) matrix from all processes and 
+ * writes it to a specified file on the root process. The matrix is written in a row-major 
+ * format, with elements separated by spaces and rows on separate lines.
+ * 
+ * @param comm The MPI communicator used for communication between processes.
+ * @param desc The descriptor array for the BCD matrix, containing information about the matrix layout.
  * @param nrow The number of rows in the local matrix.
  * @param ncol The number of columns in the local matrix.
- * @param matrix The local matrix to be saved.
+ * @param matrix A pointer to the local matrix data.
  * @param filename The name of the file to which the matrix will be saved.
- * @return Returns 0 if successful, or an error code if an error occurs.
+ * @return Returns 0 if the file is successfully opened and written to; otherwise, returns 1.
  */
 int saveBCDMatrixToFile(const MPI_Comm comm, const int* desc, const int nrow, const int ncol, const double* matrix, const std::string& filename)
 {
@@ -256,13 +339,17 @@ int saveBCDMatrixToFile(const MPI_Comm comm, const int* desc, const int nrow, co
 }
 
 /**
- * Loads a Block Cyclic Distributed (BCD) matrix from an ABACUS dumped file.
+ * @brief Loads a Block Cyclic Distributed (BCD) matrix from an ABACUS dumped file.
+ * 
+ * This function reads a matrix from a specified ABACUS - dumped file on the root process.
+ * It then distributes the matrix in a Block Cyclic Distributed (BCD) format across all processes
+ * using MPI and BLACS operations.
  * 
  * @param filename The name of the file from which the matrix will be loaded.
- * @param comm The MPI communicator.
- * @param desc The descriptor array for the BCD matrix.
- * @param matrix The local matrix to which the loaded data will be stored.
- * @return Returns 0 if successful, or an error code if an error occurs.
+ * @param comm The MPI communicator used for communication between processes.
+ * @param desc The descriptor array for the BCD matrix, containing information about the matrix layout.
+ * @param matrix A pointer to the local matrix where the loaded data will be stored.
+ * @return Returns 0 if the matrix is successfully loaded and distributed; otherwise, returns 1.
  */
 int loadBCDMatrixFromABACUSFile(const std::string& filename, const MPI_Comm comm, const int* desc, double* matrix)
 {
