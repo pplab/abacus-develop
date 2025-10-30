@@ -6,11 +6,12 @@
 #include <PSMatrix.h>
 namespace ntpoly
 {
-   const bool for_debug=true;
+   static bool for_debug=false;
 /**
  * Main function for performing NTPoly calculations.
  *
  * @param comm_2D The MPI communicator for the 2D grid.
+ * @param LAYOUT The layout of the BLACS grid ('R' for row-major, 'C' for column-major).
  * @param desc The descriptor array for the BCD matrix.
  * @param nrow The number of rows in the local matrix.
  * @param ncol The number of columns in the local matrix.
@@ -26,12 +27,13 @@ namespace ntpoly
  * @param chemical_potential The chemical potential.
  * @return Returns 0 if successful, or an error code if an error occurs.
  */
-int simple_ntpoly(const MPI_Comm comm_2D, const int desc[], 
+int simple_ntpoly(const MPI_Comm comm_2D, const char LAYOUT, const int desc[], 
     const int nrow, const int ncol, 
     const double converge_density, const double converge_overlap, const double threshold, 
     const int nelec, const int nspin, const double H[], const double S[], 
     double DM[], double EDM[], 
-    double& energy, double& chemical_potential);
+    double& energy, double& chemical_potential,
+    int verbose_level);
 
 /**
  * Constructs a PSMatrix from a Block Cyclic Distributed (BCD) matrix.

@@ -28,10 +28,10 @@ extern "C"
  * @param nacols A reference to an integer where the number of local columns will be stored.
  * @param desc A pointer to an array of integers used to store the matrix descriptor.
  */
-void initBlacsGrid(MPI_Comm comm, int nFull, int nblk,
+void initBlacsGrid(MPI_Comm comm, const char BLACS_LAYOUT, int nFull, int nblk,
                    int& blacs_ctxt, int& narows, int& nacols, int* desc)
 {
-    char BLACS_LAYOUT='C';
+    char LAYOUT;
     int ISRCPROC=0; 
     int nprows, npcols;
     int myprow, mypcol;
@@ -40,25 +40,38 @@ void initBlacsGrid(MPI_Comm comm, int nFull, int nblk,
     MPI_Comm_size(comm, &nprocs);
     MPI_Comm_rank(comm, &myid);
     // set blacs parameters
-    for(npcols=int(sqrt(double(nprocs))); npcols>=2; --npcols)
+    nprows=static_cast<int>(std::sqrt(double(nprocs+0.5)));
+    while(npcols = nprocs/nprows, nprows*npcols!=nprocs)
     {
-        if(nprocs%npcols==0) break;
+        --nprows;
     }
-    nprows=nprocs/npcols;
-    outlog("nprows", nprows);
-    outlog("npcols", npcols);
+    
+    // outlog("nprows", nprows);
+    // outlog("npcols", npcols);
 
     //int comm_f = MPI_Comm_c2f(comm);
+    if(BLACS_LAYOUT=='R'||BLACS_LAYOUT=='r')
+    {
+        LAYOUT='R';
+    }
+    else if(BLACS_LAYOUT=='C'||BLACS_LAYOUT=='c')
+    {
+        LAYOUT='C';
+    }
+    else
+    {
+        std::cerr<<"Error: BLACS_LAYOUT must be 'R' or 'C'";
+    }
     blacs_ctxt=Csys2blacs_handle(comm);
-    Cblacs_gridinit(&blacs_ctxt, &BLACS_LAYOUT, nprows, npcols);
+    Cblacs_gridinit(&blacs_ctxt, &LAYOUT, nprows, npcols);
     Cblacs_gridinfo(blacs_ctxt, &nprows, &npcols, &myprow, &mypcol);
 
     narows=numroc_(&nFull, &nblk, &myprow, &ISRCPROC, &nprows);
-    outlog("narows", narows);
+    // outlog("narows", narows);
     nacols=numroc_(&nFull, &nblk, &mypcol, &ISRCPROC, &npcols);
-    outlog("nacols", nacols);
+    // outlog("nacols", nacols);
     descinit_(desc, &nFull, &nFull, &nblk, &nblk, &ISRCPROC, &ISRCPROC, &blacs_ctxt, &narows, &info);
-    if(true)
+    if(false)
     {
         outlog("BLACS context initialized", blacs_ctxt);
         outlog("Descriptor initialized with nFull " +std::to_string(nFull) + 
@@ -150,7 +163,8 @@ int saveParametersToFile(const std::string& filename,
  */
 int loadParametersFromFile(const std::string& filename,
         int& nFull, int& nelec, int& nspin, 
-        double& converge_density, double& converge_overlap, double& threshold)
+        double& converge_density, double& converge_overlap, double& threshold,
+        int& verbose_level)
 {
     std::ifstream infile(filename);
     if (!infile.is_open())
@@ -188,6 +202,10 @@ int loadParametersFromFile(const std::string& filename,
             else if (key == "threshold")
             {
                 iss >> threshold;
+            }
+            else if (key == "verbose_level")
+            {
+                iss >> verbose_level;
             }
         }
     }
@@ -378,7 +396,7 @@ int loadBCDMatrixFromABACUSFile(const std::string& filename, const MPI_Comm comm
         // read the matrix to b
         int tmp;
         matrixFile>>tmp;
-        std::cout<<"nFull="<<tmp<<"\n";
+        // std::cout<<"nFull="<<tmp<<"\n";
         double val;
         for(int i=0; i<N; ++i)
         {

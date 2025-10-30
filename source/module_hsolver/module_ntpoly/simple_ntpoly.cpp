@@ -14,11 +14,13 @@
 #include "simple_ntpoly.h"
 //#include "module_base/global_function.h"
 #include "utils.hpp"
+#include "timer.hpp"
+#include "algorithm"
 
 namespace ntpoly
 {
     namespace{ // Use an anonymous namespace for file-local toolkits
-        
+
         MPI_Comm comm_2D_slice = MPI_COMM_NULL;
         std::vector<int> rank_slice;
         int nproc_slice = 0;
@@ -26,7 +28,7 @@ namespace ntpoly
         bool require_init_comm_slice = true;
 
         /**
-         * Calculates the global index corresponding to a given local index 
+         * Calculates the global index corresponding to a given local index
          * in a block-cyclic distribution.
          *
          * @param localIndex The local index within the current process.
@@ -44,7 +46,7 @@ namespace ntpoly
         }
 
         /**
-         * Calculates the local index and process number corresponding to a given global index 
+         * Calculates the local index and process number corresponding to a given global index
          * in a block-cyclic distribution.
          *
          * @param globalIndex The global index within the entire distributed matrix.
@@ -65,7 +67,7 @@ namespace ntpoly
          * This function computes the global process number within a BLACS grid given the layout (row-major or column-major),
          * the BLACS context, and the process row and column coordinates. It also performs error checking on the layout
          * and the resulting process number.
-         * 
+         *
          * *NOTE* The official BLACS function Cblacs_pnum seems not work correctly for the column-major layout.
          *        Therefore this function implements a workaround to calculate the process number.
          *
@@ -85,7 +87,7 @@ namespace ntpoly
             else if(BLACS_LAYOUT == 'C' || BLACS_LAYOUT == 'c')
                 pnum= prow + pcol * nprow;
             else
-            {   
+            {
                 std::cerr << "Error: Invalid BLACS layout specified. Use 'R' for row-major or 'C' for column-major." << std::endl;
                 return -1; // Error code
             }
@@ -99,11 +101,11 @@ namespace ntpoly
 
         /**
          * @brief Extracts information from a specific triplet in a TripletList.
-         * 
+         *
          * This function retrieves a triplet from the given TripletList at the specified index,
          * calculates the global and local indices of the triplet, determines the receiving process rank,
          * and then obtains the rank within the slice corresponding to the receiving process.
-         * 
+         *
          * @param blacs_context The BLACS context handle used to identify the process grid.
          * @param rank_slice An array mapping global process ranks to ranks within a slice.
          * @param nprow The number of process rows in the grid.
@@ -113,9 +115,9 @@ namespace ntpoly
          * @param TL A constant reference to the TripletList object containing the triplets.
          * @param recv_rank_slice A reference to an integer where the rank within the slice of the receiving process will be stored.
          */
-        inline void extractTripletInfo(const char BLACS_LAYOUT, const int blacs_context, const int rank_slice[], 
+        inline void extractTripletInfo(const char BLACS_LAYOUT, const int blacs_context, const int rank_slice[],
                 const int nprow, const int npcol, const int nblk,
-                const int idx, const NTPoly::TripletList_r & TL, 
+                const int idx, const NTPoly::TripletList_r & TL,
                 int& recv_rank_slice)
         {
             // Retrieve a triplet from the TripletList at the specified index
@@ -138,12 +140,12 @@ namespace ntpoly
 
         /**
          * @brief Extracts detailed information from a specific triplet in a TripletList.
-         * 
+         *
          * This function retrieves a triplet from the given TripletList at the specified index.
-         * It then calculates the global row and column indices of the triplet, 
+         * It then calculates the global row and column indices of the triplet,
          * determines the local process row and column numbers, finds the receiving process rank,
          * and extracts the value of the triplet.
-         * 
+         *
          * @param blacs_context The BLACS context handle used to identify the process grid.
          * @param rank_slice An array mapping global process ranks to ranks within a slice.
          * @param nprow The number of process rows in the grid.
@@ -156,9 +158,9 @@ namespace ntpoly
          * @param global_col_idx A reference to an integer where the global column index of the triplet will be stored.
          * @param val A reference to a double where the value of the triplet will be stored.
          */
-        inline void extractTripletInfo(const char BLACS_LAYOUT, const int blacs_context, const int rank_slice[], 
+        inline void extractTripletInfo(const char BLACS_LAYOUT, const int blacs_context, const int rank_slice[],
                 const int nprow, const int npcol, const int nblk,
-                const int idx, const NTPoly::TripletList_r & TL, 
+                const int idx, const NTPoly::TripletList_r & TL,
                 int& recv_rank_slice, int& local_row_idx, int& local_col_idx, double& value)
         {
             // Retrieve a triplet from the TripletList at the specified index
@@ -175,9 +177,9 @@ namespace ntpoly
             local_col_idx=localIndex(global_col_idx, nblk, npcol, local_pcol);
             // Determine the global rank of the receiving process using the BLACS context
             int recv_rank=my_pnum(BLACS_LAYOUT, blacs_context, local_prow, local_pcol);
-            
+
             // check process grid information
-            static bool _check=true;
+            static bool _check=for_debug;
             if(_check)
             {
                 for(int i=0; i<nprow; ++i)
@@ -185,8 +187,8 @@ namespace ntpoly
                     for(int j=0; j<npcol; ++j)
                     {
                         int rank=Cblacs_pnum(blacs_context, i, j);
-                        outlog("Process at row " + std::to_string(i) + 
-                               ", column " + std::to_string(j) + 
+                        outlog("Process at row " + std::to_string(i) +
+                               ", column " + std::to_string(j) +
                                " has global rank " + std::to_string(rank));
                     }
                 }
@@ -199,18 +201,18 @@ namespace ntpoly
         }
         /**
          * @brief Creates a communicator for each process slice and establishes a mapping between the global communicator and local slice communicators.
-         * 
-         * This function either directly uses the input 2D communicator if the global number of slices is 1, 
-         * or splits it into multiple slice communicators when the number of slices is greater than 1. 
+         *
+         * This function either directly uses the input 2D communicator if the global number of slices is 1,
+         * or splits it into multiple slice communicators when the number of slices is greater than 1.
          * It calculates the rank of each process within the slice and stores it in the `rank_slice` vector.
-         * 
+         *
          * @param comm_2D The input 2D MPI communicator.
          * @param my_slice The slice number to which the current process belongs.
          * @param nproc The total number of processes in the input 2D communicator.
          * @param myid The rank of the current process in the input 2D communicator.
          */
         inline void createCommSlice(const MPI_Comm comm_2D, const int my_slice, const int nproc, const int myid)
-        {  
+        {
             // Get the group of the input 2D communicator
             MPI_Group group_2D;
             MPI_Comm_group(comm_2D, &group_2D);
@@ -223,12 +225,12 @@ namespace ntpoly
                 // Get the number of processes in the slice communicator
                 MPI_Comm_size(comm_2D_slice, &nproc_slice);
                 // Resize the rank_slice vector to accommodate all processes
-                rank_slice.resize(nproc);             
+                rank_slice.resize(nproc);
                 // Initialize the rank_slice vector. Each process's slice rank equals its rank in the 2D communicator.
                 for(int i=0; i<nproc; ++i)
                 {
                     rank_slice[i]=i;
-                }   
+                }
             }
             else{
                 // When the global number of slices is greater than 1, create communicators and groups within each slice
@@ -266,12 +268,12 @@ namespace ntpoly
                 for(int i=0; i<nproc_slice; ++i)
                 {
                     rank_list_slice[i]=i;
-                }            
+                }
                 // Translate the ranks of processes within the slice to ranks in the global communicator
                 MPI_Group_translate_ranks(group_2D_slice, nproc_slice, rank_list_slice, group_2D, glocal_rank_list_slice);
 
                 // Debug information, indicating that the MPI_Group_translate_ranks function has been called
-                if(for_debug) 
+                if(for_debug)
                 {
                     outlog("MPI_Group_translate_ranks is called");
                 }
@@ -280,13 +282,16 @@ namespace ntpoly
                 for(int i=0; i<nproc_slice; ++i)
                 {
                     rank_slice[glocal_rank_list_slice[i]]=i;
-                    outlog("rank_slice["+std::to_string(glocal_rank_list_slice[i])+ "] ="+ std::to_string(i));
                 }
 
                 // Debug information, output the number of processes in the current slice
-                if(for_debug) 
+                if(for_debug)
                 {
                     outlog("All processes are split to slices, nproc in current slice is", nproc_slice);
+                    for(int i=0; i<nproc_slice; ++i)
+                    {
+                        outlog("rank_slice["+std::to_string(glocal_rank_list_slice[i])+ "] ="+ std::to_string(i));
+                    }
                 }
             }
         }
@@ -311,15 +316,19 @@ namespace ntpoly
      * @param chemical_potential The chemical potential.
      * @return Returns 0 if successful, or an error code if an error occurs.
      */
-    int simple_ntpoly(const MPI_Comm comm_2D, const int desc[], 
-        const int nrow, const int ncol, 
-        const double converge_density, const double converge_overlap, const double threshold, 
-        const int nelec, const int nspin, const double H[], const double S[], 
-        double DM[], double EDM[], 
-        double& energy, double& chemical_potential)
+    int simple_ntpoly(const MPI_Comm comm_2D, const char LAYOUT, const int desc[],
+        const int nrow, const int ncol,
+        const double converge_density, const double converge_overlap, const double threshold,
+        const int nelec, const int nspin, const double H[], const double S[],
+        double DM[], double EDM[],
+        double& energy, double& chemical_potential, const int verbose_level)
     {
         const int nFull=desc[2];
-        if(for_debug) 
+        if(verbose_level>3)
+            for_debug=true;
+        MPITimer timer;
+        // check input parameters
+        if(for_debug)
         {
             //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "enter simple_ntpoly, nFull", nFull);
             outlog("enter simple_ntpoly, nFull", nFull);
@@ -330,7 +339,7 @@ namespace ntpoly
             if(myid == 0)
             {
                 saveParametersToFile("parameters.dat", nFull, nelec, nspin, converge_density, converge_overlap, threshold);
-            }            
+            }
             // int saveBCDMatrixToFile(const MPI_Comm comm, const int* desc, const int nrow, const int ncol, double* matrix, const std::string& filename)
             saveBCDMatrixToFile(comm_2D, desc, nrow, ncol, H, "H.dat");
             saveBCDMatrixToFile(comm_2D, desc, nrow, ncol, S, "S.dat");
@@ -347,7 +356,7 @@ namespace ntpoly
         {
             NTPoly::ConstructGlobalProcessGrid(comm_2D, process_slice);
             require_init_NTPOLY=false;
-        }        
+        }
         if(for_debug) //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "GlobalProcessGrid is constructed");
         {
             outlog("GlobalProcessGrid is constructed");
@@ -355,34 +364,47 @@ namespace ntpoly
 
         // init PSMatrices of Hamiltonian, Overlap, ISQOverlap, Density and EnergyDensity
         NTPoly::Matrix_ps Hamiltonian(nFull);
-        NTPoly::Matrix_ps Overlap(nFull);  
+        NTPoly::Matrix_ps Overlap(nFull);
         NTPoly::Matrix_ps ISQOverlap(nFull);
         NTPoly::Matrix_ps Density(nFull);
         NTPoly::Matrix_ps EnergyDensity(nFull);
-        if(for_debug) 
+        if(for_debug)
         {
-            // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
-            //     "All PSMatrices are allocated, ActualDimension is", 
+            // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,
+            //     "All PSMatrices are allocated, ActualDimension is",
             //     Hamiltonian.GetActualDimension());
-            // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
-            //     "LogicalDimension is", 
+            // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,
+            //     "LogicalDimension is",
             //     Hamiltonian.GetLogicalDimension());
             outlog("All PSMatrices are allocated, ActualDimension is", Hamiltonian.GetActualDimension());
             outlog("LogicalDimension is", Hamiltonian.GetLogicalDimension());
         }
 
         // convert H and S from BCD matrix to PSMatrix
+        if(verbose_level>0)
+        {
+            outlog("start to convert H and S from BCD matrix to PSMatrix");
+            timer.start();
+        }
         constructPSMatrixFromBCD(Hamiltonian, comm_2D, desc, nrow, ncol, H, threshold);
-        constructPSMatrixFromBCD(Overlap, comm_2D, desc, nrow, ncol, S, threshold);        
+        constructPSMatrixFromBCD(Overlap, comm_2D, desc, nrow, ncol, S, threshold);
+        if(verbose_level>0)
+        {
+            outlog("conversion is done, time used:", timer.stop());
+        }
         //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "H and S are converted to PSMatrix");
         if(for_debug)
         {
-            outlog("H and S are converted to PSMatrix");
             Hamiltonian.WriteToMatrixMarket("Hamiltonian.mtx");
             Overlap.WriteToMatrixMarket("Overlap.mtx");
         }
 
         // set permutation
+        if(verbose_level>0)
+        {
+            outlog("start to do permutation");
+            timer.start();
+        }
         const int perm_dim = Hamiltonian.GetLogicalDimension();
         outlog("Permutation dimension: ", perm_dim);
         if (perm_dim <= 0) {
@@ -392,24 +414,33 @@ namespace ntpoly
         NTPoly::Permutation permutation(perm_dim);
         permutation.SetRandomPermutation();
 
-        if(for_debug) //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "permutation is done");
+        if(verbose_level>0) //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "permutation is done");
         {
-            outlog("permutation is done");
+            outlog("permutation is done, time used:", timer.stop());
         }
 
-        // set solver parameters 
+        // set solver parameters
         NTPoly::SolverParameters solver_parameters;
         solver_parameters.SetConvergeDiff(converge_overlap);
         solver_parameters.SetLoadBalance(permutation);
         solver_parameters.SetThreshold(threshold);
         solver_parameters.SetVerbosity(true);
-        
+
         // InverseSquareRoot(Overlap, ISQOverlap, solver_parameters)
+        if(verbose_level>0)
+        {
+            outlog("start to do InverseSquareRoot of Overlap");
+            timer.start();
+        }
         NTPoly::SquareRootSolvers::InverseSquareRoot(Overlap, ISQOverlap, solver_parameters);
+        if(verbose_level>0)
+        {
+            outlog("ISQOverlap is done, time used:", timer.stop());
+        }
 
         if(for_debug) //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "ISQOverlap is done");
         {
-            outlog("ISQOverlap is done");
+            ISQOverlap.WriteToMatrixMarket("ISQOverlap.mtx");
         }
 
         // Solve the Density Matrix.
@@ -417,23 +448,39 @@ namespace ntpoly
         solver_parameters.SetConvergeDiff(converge_density);
         const double spin_degeneracy = nspin==1? 2.0: 1.0;
         const double trace=nelec/spin_degeneracy;
-        NTPoly::DensityMatrixSolvers::TRS2(Hamiltonian, ISQOverlap, trace, 
+        if(verbose_level>0)
+        {
+            outlog("start to solve the Density Matrix, spin_degeneracy=", spin_degeneracy);
+            timer.start();
+        }
+        NTPoly::DensityMatrixSolvers::TRS2(Hamiltonian, ISQOverlap, trace,
                         Density, energy, chemical_potential, solver_parameters);
+        if(verbose_level>0)
+        {
+            outlog("Density Matrix is solved, time used:", timer.stop());
+        }
         Density.Scale(spin_degeneracy);
-        
+
         if(for_debug) //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Density Matrix is done");
         {
-            outlog("Density Matrix is done");
+            outlog("Density Matrix is scaled by spin_degeneracy=", spin_degeneracy);
             Density.WriteToMatrixMarket("DM.mtx");
         }
         // convert DM from the PSMatrix to a BCD matrix
-        constructBCDFromPSMatrix(Density, comm_2D, 'C', desc, nrow, ncol, DM);
+        if(verbose_level>0)
+        {
+            outlog("start to convert DM from PSMatrix to BCD matrix");
+            timer.start();
+        }
+        constructBCDFromPSMatrix(Density, comm_2D, LAYOUT, desc, nrow, ncol, DM);
+        if(verbose_level>0)
+        {
+            outlog("conversion of DM is done, time used:", timer.stop());
+        }
 
         if(for_debug)
         {
-            //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "Density Matrix is converted to BCD format");
-            outlog("Density Matrix is converted to BCD format");
-            //saveBCDMatrixToFile(comm_2D, desc, nrow, ncol, DM, "DM.dat");
+            saveBCDMatrixToFile(comm_2D, desc, nrow, ncol, DM, "DM.dat");
             //saveMatrixToFile("DM", DM, nrow, ncol);
             MPI_Barrier(comm_2D);
             outlog("DM is saved to file DM.dat");
@@ -446,19 +493,35 @@ namespace ntpoly
             Hamiltonian.WriteToMatrixMarket("forEDM_Hamiltonian.mtx");
             Density.WriteToMatrixMarket("forEDM_Density.mtx");
         }
+        if(verbose_level>0)
+        {
+            outlog("start to solve the Energy Density Matrix");
+            timer.start();
+        }
         NTPoly::DensityMatrixSolvers::EnergyDensityMatrix(Hamiltonian, Density, EnergyDensity, threshold);
+        if(verbose_level>0)
+        {
+            outlog("EnergyDensity Matrix is done, time used:", timer.stop());
+        }
         if(for_debug) //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "EnergyDensity Matrix is done");
         {
-            outlog("EnergyDensity Matrix is done");
             EnergyDensity.WriteToMatrixMarket("EDM.mtx");
         }
 
-        constructBCDFromPSMatrix(EnergyDensity, comm_2D, 'C', desc, nrow, ncol, EDM);
-        if(for_debug) 
+        // convert EDM from the PSMatrix to a BCD matrix
+        if(verbose_level>0)
         {
-            //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "EnergyDensity Matrix is converted to BCD format");            
-            outlog("EnergyDensity Matrix is converted to BCD format");
-            //saveBCDMatrixToFile(comm_2D, desc, nrow, ncol, EDM, "EDM.dat");
+            outlog("start to convert EDM from PSMatrix to BCD matrix");
+            timer.start();
+        }
+        constructBCDFromPSMatrix(EnergyDensity, comm_2D, LAYOUT, desc, nrow, ncol, EDM);
+        if(verbose_level>0)
+        {
+            outlog("conversion of EDM is done, time used:", timer.stop());
+        }
+        if(for_debug)
+        {
+            saveBCDMatrixToFile(comm_2D, desc, nrow, ncol, EDM, "EDM.dat");
             //saveMatrixToFile("EDM", EDM, nrow, ncol);
         }
         return 0;
@@ -481,7 +544,7 @@ namespace ntpoly
         const int nrow, const int ncol, const double M[], const double threshold)
     {
         // init PSMatrix
-        const int nFull=desc[2];    
+        const int nFull=desc[2];
         //PSM.Resize(nFull);
         //ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, "PSM is resized to", PSM.GetActualDimension());
 
@@ -491,9 +554,9 @@ namespace ntpoly
         {
             readTripletListFromBCD(tripletList, comm_2D, desc, nrow, ncol, M, threshold);
         }
-        if(for_debug) 
+        if(for_debug)
         {
-            // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+            // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,
             // "the BCD Matrix is converted to tripletList, non-zero elements are:", tripletList.GetSize());
             outlog("the BCD Matrix is converted to tripletList, non-zero elements are:", tripletList.GetSize());
             // std::string local_tripletList_filename="local_tripletList.txt";
@@ -504,7 +567,7 @@ namespace ntpoly
         }
         // fill PSMatrix from tripletlist
         PSM.FillFromTripletList(tripletList);
-        if(for_debug) // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+        if(for_debug) // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,
             // "the PSMatrix is filled from tripletList, size is", PSM.GetSize());
         {
             outlog("the PSMatrix is filled from tripletList, size is", PSM.GetSize());
@@ -514,7 +577,7 @@ namespace ntpoly
 
     /**
      * Reads all non-zero values from a Block Cyclic Distributed (BCD) matrix into a TripletList.
-     * 
+     *
      * @param tripletList The TripletList to which the non-zero values will be appended.
      * @param comm_2D The MPI communicator for the 2D grid.
      * @param desc The descriptor array for the BCD matrix.
@@ -532,7 +595,7 @@ namespace ntpoly
         const int nblk=desc[4];
         int nprow, npcol, myprow, mypcol;
         Cblacs_gridinfo(blacs_context, &nprow, &npcol, &myprow, &mypcol);
-        if(for_debug) // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+        if(for_debug) // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,
             //"enter readTripletListFromBCD, initial tripletList size is", tripletList.GetSize());
         {
             outlog("enter readTripletListFromBCD, initial tripletList size is", tripletList.GetSize());
@@ -570,6 +633,7 @@ namespace ntpoly
         const MPI_Comm comm_2D, const char layout, const int desc[],
         const int nrow, const int ncol, double M[])
     {
+        std::fill_n(M, static_cast<size_t>(nrow) * ncol, 0.0);
         int blacs_context=desc[1];
         const int nFull=desc[2];
         const int nblk=desc[4];
@@ -582,7 +646,7 @@ namespace ntpoly
         int myid, nproc;
         MPI_Comm_size(comm_2D, &nproc);
         MPI_Comm_rank(comm_2D, &myid);
-        if(for_debug) // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running, 
+        if(for_debug) // ModuleBase::GlobalFunc::OUT(GlobalV::ofs_running,
         {
             outlog("Enter constructBCDFromPSMatrix, my slice is", my_slice);
             outlog("M's size is", nrow*ncol);
@@ -590,7 +654,7 @@ namespace ntpoly
         if(require_init_comm_slice)
         {
             // init process slice communicator
-            if(for_debug) 
+            if(for_debug)
             {
                 outlog("Initializing process slice communicator");
             }
@@ -608,7 +672,7 @@ namespace ntpoly
         NTPoly::TripletList_r local_tripletList;
         PSM.GetTripletList(local_tripletList);
         n_send_element=local_tripletList.GetSize();
-        if(for_debug) 
+        if(for_debug)
         {
             std::string local_tripletList_filename="local_input_tripletList_"+std::to_string(myid)+".txt";
             saveTripletListToFile(local_tripletList, local_tripletList_filename);
@@ -616,7 +680,7 @@ namespace ntpoly
         // count number of elements to be sent to each process
         std::vector<int> send_count(nproc_slice, 0);
         NTPoly::Triplet_r tmp_t;
-        for(int i=0; i<n_send_element; ++i) 
+        for(int i=0; i<n_send_element; ++i)
         {
             int recv_rank_slice;
             extractTripletInfo(layout, blacs_context, rank_slice.data(),
@@ -626,18 +690,18 @@ namespace ntpoly
         }
         // build sender and receiver parameters for mpi_alltoallv
         std::vector<int> recv_count(nproc_slice, 0);
-        // if(for_debug) 
-        // {         
-        //     outlog("nproc_slice is", nproc_slice); 
+        // if(for_debug)
+        // {
+        //     outlog("nproc_slice is", nproc_slice);
         //     outlog("comm_2D_slice is", MPI_Comm_c2f(comm_2D_slice));
         //     saveArrayToFile("send_count_before", send_count.data(), nproc_slice);
         //     saveArrayToFile("recv_count_before", recv_count.data(), nproc_slice);
         // }
         MPI_Alltoall(send_count.data(), 1, MPI_INT, recv_count.data(), 1, MPI_INT, comm_2D_slice);
         //MPI_Alltoall(&send_count[0], 1, MPI_INT, &recv_count[0], 1, MPI_INT, comm_2D_slice);
-        if(for_debug) 
-        {         
-            outlog("nproc_slice is", nproc_slice); 
+        if(for_debug)
+        {
+            outlog("nproc_slice is", nproc_slice);
             saveArrayToFile("send_count", send_count.data(), nproc_slice);
             saveArrayToFile("recv_count", recv_count.data(), nproc_slice);
         }
@@ -652,10 +716,10 @@ namespace ntpoly
             recv_displ[i]=recv_displ[i-1]+recv_count[i-1];
             n_recv_element+=recv_count[i];
         }
-        if(for_debug) 
+        if(for_debug)
         {
             outlog("n_send_element is", n_send_element);
-            outlog("n_recv_element is", n_recv_element);            
+            outlog("n_recv_element is", n_recv_element);
             saveArrayToFile("send_displ", send_displ.data(), nproc_slice);
             saveArrayToFile("recv_displ", recv_displ.data(), nproc_slice);
         }
@@ -665,7 +729,7 @@ namespace ntpoly
         std::vector<int> send_row_index(n_send_element);
         std::vector<int> send_col_index(n_send_element);
         std::vector<int> p_fill_to_send(nproc_slice, 0);
-        
+
         // check the maximum index of each process grid
         std::vector<int> _max_row_idx(nproc_slice, -1);
         std::vector<int> _max_col_idx(nproc_slice, -1);
@@ -688,21 +752,21 @@ namespace ntpoly
                 if(local_col_idx>_max_col_idx[recv_rank_slice]) _max_col_idx[recv_rank_slice]=local_col_idx;
             }
         }
-        outlog("max row index and col index in each process slice:");
-        for(int i=0; i<nproc_slice; ++i)
+        if(for_debug)
         {
-            outlog("Process slice " + std::to_string(i) 
-                + ": max row index = " + std::to_string(_max_row_idx[i])
-                + ": max col index = " + std::to_string(_max_col_idx[i]));
-        }
-        if(for_debug) 
-        {
+            outlog("max row index and col index in each process slice:");
+            for(int i=0; i<nproc_slice; ++i)
+            {
+                outlog("Process slice " + std::to_string(i)
+                    + ": max row index = " + std::to_string(_max_row_idx[i])
+                    + ": max col index = " + std::to_string(_max_col_idx[i]));
+            }
             outlog("send_data is filled");
             saveArrayToFile("send_data", send_data.data(), n_send_element);
             saveArrayToFile("send_row_index", send_row_index.data(), n_send_element);
             saveArrayToFile("send_col_index", send_col_index.data(), n_send_element);
         }
-        // call MPI_Alltoallv to send elements to each process        
+        // call MPI_Alltoallv to send elements to each process
         std::vector<double> recv_data(n_recv_element);
         std::vector<int> recv_row_index(n_recv_element);
         std::vector<int> recv_col_index(n_recv_element);
@@ -712,7 +776,7 @@ namespace ntpoly
             recv_row_index.data(), recv_count.data(), recv_displ.data(), MPI_INT, comm_2D_slice);
         MPI_Alltoallv(send_col_index.data(), send_count.data(), send_displ.data(), MPI_INT,
             recv_col_index.data(), recv_count.data(), recv_displ.data(), MPI_INT, comm_2D_slice);
-        if(for_debug) 
+        if(for_debug)
         {
             outlog("elements are exchanged between processes");
             saveArrayToFile("recv_data", recv_data.data(), n_recv_element);
@@ -727,7 +791,7 @@ namespace ntpoly
             int local_idx=local_row_idx+local_col_idx*nrow;
             M[local_idx]=recv_data[i];
         }
-        if(for_debug) 
+        if(for_debug)
         {
             outlog("received elements are filled to BCD Matrix");
         }
@@ -736,7 +800,7 @@ namespace ntpoly
 
     /**
      * Constructs a Block Cyclic Distributed (BCD) matrix from a PSMatrix.
-     * Use NTPoly transform function 
+     * Use NTPoly transform function
      * It has some issues, the matrix is not exactly the same as the original matrix,
      * and the performance is poor for big matrix with small nblk
      *
@@ -748,18 +812,19 @@ namespace ntpoly
      * @param M The BCD matrix to be filled.
      * @return Returns 0 if successful, or an error code if an error occurs.
      */
-    int constructBCDFromPSMatrix_NTPoly(NTPoly::Matrix_ps& PSM, 
+    int constructBCDFromPSMatrix_NTPoly(NTPoly::Matrix_ps& PSM,
         const MPI_Comm comm_2D, const int desc[],
         const int nrow, const int ncol, double M[])
     {
+        std::fill_n(M, static_cast<size_t>(nrow) * ncol, 0.0);
         int blacs_context=desc[1];
-        const int nFull=desc[2];  
+        const int nFull=desc[2];
         const int nblk=desc[4];
         int myid;
         MPI_Comm_rank(comm_2D, &myid);
         int nprow, npcol, myprow, mypcol;
         Cblacs_gridinfo(blacs_context, &nprow, &npcol, &myprow, &mypcol);
-        if(for_debug) 
+        if(for_debug)
         {
             outlog("enter constructBCDFromPSMatrix, nblk is", nblk);
             outlog("nprow is "+std::to_string(nprow)+" npcol is " +std::to_string(npcol));
@@ -788,7 +853,7 @@ namespace ntpoly
                 const int end_col=std::min(start_col+nblk, nFull);
                 // The c++ interface of the NTPoly has already transformed the matrix index into Fortran format, which is one-based.
                 // ref: PSMatrix.cc, line 132
-                PSM.GetMatrixBlock(tripletList, start_row, end_row, start_col, end_col);                 
+                PSM.GetMatrixBlock(tripletList, start_row, end_row, start_col, end_col);
                 if(for_debug)
                 {
                     outlog("GetMatrixBlock, i is "+std::to_string(i)+" j is "+std::to_string(j));
@@ -828,15 +893,15 @@ namespace ntpoly
         }
         return 0;
     }
-    
+
     /**
      * @brief Cleans up MPI resources, specifically the 2D slice communicator.
-     * 
+     *
      * This function checks if the 2D slice communicator is valid (not MPI_COMM_NULL).
      * If it is valid, it frees the communicator using MPI_Comm_free and sets it to MPI_COMM_NULL
      * to indicate that the communicator is no longer valid.
      */
-    void cleanupMPIResources() 
+    void cleanupMPIResources()
     {
         // Check if the 2D slice communicator is valid
         if (MPI_COMM_NULL != comm_2D_slice) {
